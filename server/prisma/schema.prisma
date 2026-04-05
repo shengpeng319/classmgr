@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  role      String   @default("user")  // "admin" or "user"
+  name      String?
+  avatar    String?
+  gender    String   @default("male")
+  age       Int      @default(0)
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rememberedUsers RememberedUser[]
+}
+
+model RememberedUser {
+  id           String   @id @default(uuid())
+  userId       String
+  deviceId     String
+  rememberToken String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id])
+  
+  @@unique([userId, deviceId])
+}
+
+model Student {
+  id        String   @id @default(uuid())
+  name      String
+  avatar    String?
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  courses   CourseStudent[]
+  records   Record[]
+  ownedCards StudentCard[]
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String?  @default("#87CEEB")
+  dayOfWeek   Int      // 0-6, 0=Sunday
+  startTime   String   // "09:00"
+  endTime     String   // "10:00"
+  location    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  students    CourseStudent[]
+}
+
+model CourseStudent {
+  id        String   @id @default(uuid())
+  studentId String
+  courseId  String
+  student   Student  @relation(fields: [studentId], references: [id])
+  course    Course   @relation(fields: [courseId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, courseId])
+}
+
+model Record {
+  id          String   @id @default(uuid())
+  studentId   String
+  courseId    String
+  date        DateTime
+  status      String   // "attended", "absent", "late"
+  note        String?
+  pointsEarned Int     @default(0)
+  createdAt   DateTime @default(now())
+  student     Student  @relation(fields: [studentId], references: [id])
+}
+
+model Card {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  rarity      String   // "common", "rare", "epic", "legendary"
+  image       String?
+  pointsCost  Int      @default(10)
+  stock       Int      @default(-1)  // -1 = unlimited
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  owners      StudentCard[]
+}
+
+model StudentCard {
+  id        String   @id @default(uuid())
+  studentId String
+  cardId    String
+  drawnAt   DateTime @default(now())
+  student   Student  @relation(fields: [studentId], references: [id])
+  card      Card     @relation(fields: [cardId], references: [id])
+
+  @@unique([studentId, cardId])
+}
