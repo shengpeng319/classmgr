@@ -72,3 +72,8 @@ Business requirement to be provided...
 - **Step by Step**: 复杂功能需分步骤实现，先逻辑后优化。
 - **Database Migration**: 使用 `prisma migrate dev` 管理数据库变更。
 - **Multi-platform Build**: 使用 `uni build` 命令编译到不同平台。
+
+## 8. Dev Server
+- **Frontend (H5)**: `cd /Users/shengpeng319/code/classmgr && npx uni --host 0.0.0.0 --port 8080`
+- **Access**: http://192.168.101.50:8080 (联网访问)
+- **Backend**: `cd /Users/shengpeng319/code/classmgr/server && npx ts-node src/index.ts`

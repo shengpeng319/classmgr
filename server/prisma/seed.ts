@@ -3,6 +3,18 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
+function getDateMinusDays(days: number): Date {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return new Date(date.toISOString().split('T')[0] + 'T00:00:00.000Z')
+}
+
+function getDateStr(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date.toISOString().split('T')[0]
+}
+
 async function main() {
   const adminPassword = await bcrypt.hash('admin123', 10)
   await prisma.user.upsert({
@@ -25,6 +37,88 @@ async function main() {
       role: 'user'
     }
   })
+
+  const danielPassword = await bcrypt.hash('daniel123', 10)
+  const daniel = await prisma.user.upsert({
+    where: { username: 'daniel' },
+    update: {},
+    create: {
+      username: 'daniel',
+      password: danielPassword,
+      role: 'user',
+      name: 'Daniel'
+    }
+  })
+
+  const sophiaPassword = await bcrypt.hash('sophia123', 10)
+  const sophia = await prisma.user.upsert({
+    where: { username: 'sophia' },
+    update: {},
+    create: {
+      username: 'sophia',
+      password: sophiaPassword,
+      role: 'user',
+      name: 'Sophia'
+    }
+  })
+
+  const existingDanielTasks = await prisma.task.count({ where: { userId: daniel.id } })
+  if (existingDanielTasks === 0) {
+    const danielTasks = []
+    for (let i = 0; i < 20; i++) {
+      danielTasks.push(
+        {
+          title: i % 2 === 0 ? '数学作业' : '英语作业',
+          type: 'homework',
+          points: Math.floor(Math.random() * 5) + 1,
+          userId: daniel.id,
+          startDate: getDateMinusDays(i + 7),
+          endDate: getDateMinusDays(i),
+          isCompleted: i > 3
+        },
+        {
+          title: i % 3 === 0 ? '钢琴课' : '绘画课',
+          type: 'extracurricular',
+          points: Math.floor(Math.random() * 5) + 1,
+          userId: daniel.id,
+          startDate: getDateMinusDays(i + 7),
+          endDate: getDateMinusDays(i),
+          isCompleted: i > 5
+        }
+      )
+    }
+    await prisma.task.createMany({ data: danielTasks })
+    console.log(`Created ${danielTasks.length} tasks for daniel`)
+  }
+
+  const existingSophiaTasks = await prisma.task.count({ where: { userId: sophia.id } })
+  if (existingSophiaTasks === 0) {
+    const sophiaTasks = []
+    for (let i = 0; i < 20; i++) {
+      sophiaTasks.push(
+        {
+          title: i % 2 === 0 ? '语文作业' : '科学作业',
+          type: 'homework',
+          points: Math.floor(Math.random() * 5) + 1,
+          userId: sophia.id,
+          startDate: getDateMinusDays(i + 7),
+          endDate: getDateMinusDays(i),
+          isCompleted: i > 2
+        },
+        {
+          title: i % 2 === 0 ? '舞蹈课' : '小提琴课',
+          type: 'extracurricular',
+          points: Math.floor(Math.random() * 5) + 1,
+          userId: sophia.id,
+          startDate: getDateMinusDays(i + 7),
+          endDate: getDateMinusDays(i),
+          isCompleted: i > 4
+        }
+      )
+    }
+    await prisma.task.createMany({ data: sophiaTasks })
+    console.log(`Created ${sophiaTasks.length} tasks for sophia`)
+  }
 
   const existingStudents = await prisma.student.count()
   if (existingStudents === 0) {

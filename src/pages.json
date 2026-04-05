@@ -24,25 +24,19 @@
     {
       "path": "pages/today/today",
       "style": {
-        "navigationBarTitleText": "今日一览",
-        "navigationBarBackgroundColor": "#87CEEB",
-        "navigationBarTextStyle": "white"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/history/history",
       "style": {
-        "navigationBarTitleText": "历史数据",
-        "navigationBarBackgroundColor": "#87CEEB",
-        "navigationBarTextStyle": "white"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/lottery/lottery",
       "style": {
-        "navigationBarTitleText": "积分抽卡",
-        "navigationBarBackgroundColor": "#87CEEB",
-        "navigationBarTextStyle": "white"
+        "navigationStyle": "custom"
       }
     },
     {
@@ -67,6 +61,32 @@
     "navigationBarTitleText": "小孩课程管理",
     "navigationBarBackgroundColor": "#87CEEB",
     "backgroundColor": "#F0F8FF"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#87CEEB",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/today/today",
+        "text": "今日一览",
+        "iconPath": "static/tabs/today.png",
+        "selectedIconPath": "static/tabs/today-active.png"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史数据",
+        "iconPath": "static/tabs/history.png",
+        "selectedIconPath": "static/tabs/history-active.png"
+      },
+      {
+        "pagePath": "pages/lottery/lottery",
+        "text": "积分抽卡",
+        "iconPath": "static/tabs/lottery.png",
+        "selectedIconPath": "static/tabs/lottery-active.png"
+      }
+    ]
   },
   "uniIdRouter": {}
 }

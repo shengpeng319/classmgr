@@ -9,6 +9,7 @@ export function userRoutes(router: Router) {
       select: {
         id: true,
         username: true,
+        name: true,
         role: true,
         createdAt: true,
         updatedAt: true

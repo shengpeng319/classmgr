@@ -15,14 +15,20 @@ interface ApiResponse<T = any> {
 export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T>> {
   const { url, method = 'GET', data } = options
 
+  const token = uni.getStorageSync('token')
+  const header: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+  if (token) {
+    header['Authorization'] = `Bearer ${token}`
+  }
+
   return new Promise((resolve, reject) => {
     uni.request({
       url: `${BASE_URL}${url}`,
       method,
       data,
-      header: {
-        'Content-Type': 'application/json'
-      },
+      header,
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data as ApiResponse<T>)

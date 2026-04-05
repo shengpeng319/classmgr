@@ -86,7 +86,11 @@ const loadProfile = () => {
       age: user.age || '',
       phone: user.phone || ''
     }
-    avatarUrl.value = user.avatar || defaultAvatars[0]
+    if (user.avatar && (user.avatar.startsWith('data:image') || user.avatar.startsWith('http'))) {
+      avatarUrl.value = user.avatar
+    } else {
+      avatarUrl.value = defaultAvatars[0]
+    }
   } else {
     avatarUrl.value = defaultAvatars[0]
   }
@@ -101,12 +105,56 @@ const changeAvatar = () => {
       } else {
         uni.chooseImage({
           sourceType: res.tapIndex === 0 ? ['camera'] : ['album'],
-          success: (res) => {
-            avatarUrl.value = res.tempFilePaths[0]
+          count: 1,
+          success: async (res) => {
+            const tempFilePath = res.tempFilePaths[0]
+            
+            try {
+              const base64 = await fileToBase64(tempFilePath)
+              avatarUrl.value = base64
+              uni.showToast({ title: '头像已选择', icon: 'success' })
+            } catch (e) {
+              console.error('Failed to convert to base64', e)
+              avatarUrl.value = tempFilePath
+            }
+          },
+          fail: (e) => {
+            console.error('Choose image failed', e)
+            uni.showToast({ title: '选择失败', icon: 'none' })
           }
         })
       }
     }
+  })
+}
+
+const fileToBase64 = (filePath: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    // For H5 with blob URLs or data URLs
+    if (filePath.startsWith('blob:') || filePath.startsWith('data:')) {
+      fetch(filePath)
+        .then(resp => resp.blob())
+        .then(blob => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+        .catch(reject)
+      return
+    }
+    
+    // For native platforms, use uni API
+    const fs = uni.getFileSystemManager()
+    fs.readFile({
+      filePath,
+      encoding: 'base64',
+      success: (res: any) => {
+        const ext = filePath.split('.').pop() || 'jpg'
+        resolve(`data:image/${ext};base64,${res.data}`)
+      },
+      fail: reject
+    })
   })
 }
 

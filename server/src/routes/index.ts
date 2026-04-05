@@ -7,6 +7,7 @@ import { lotteryRoutes } from './lottery'
 import { authRoutes } from './auth'
 import { userRoutes } from './user'
 import { profileRoutes } from './profile'
+import { taskRoutes } from './task'
 
 export const router = new Router({ prefix: '/api' })
 
@@ -19,3 +20,4 @@ courseRoutes(router)
 recordRoutes(router)
 cardRoutes(router)
 lotteryRoutes(router)
+taskRoutes(router)

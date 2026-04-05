@@ -52,15 +52,7 @@
           <view class="card-bg lottery-bg"></view>
         </view>
 
-        <view class="entry-card" @click="navigateTo('/pages/user/user')" v-if="isAdmin">
-          <view class="card-icon user-icon">
-            <view class="icon-person"></view>
-          </view>
-          <text class="card-title">用户管理</text>
-          <text class="card-desc">管理家庭成员信息</text>
-          <view class="card-bg user-bg"></view>
         </view>
-      </view>
     </view>
 
     <!-- 用户菜单弹窗 -->
@@ -79,6 +71,9 @@
         </view>
         <view class="menu-item" @click="switchUser">
           <text class="menu-item-text">切换用户</text>
+        </view>
+        <view class="menu-item" @click="goToUserManagement" v-if="isAdmin">
+          <text class="menu-item-text">用户管理</text>
         </view>
         <view class="menu-item logout" @click="handleLogout">
           <text class="menu-item-text">退出登录</text>
@@ -140,17 +135,20 @@ const goToProfile = () => {
   uni.navigateTo({ url: '/pages/profile/profile' })
 }
 
+const goToUserManagement = () => {
+  closeMenu()
+  uni.navigateTo({ url: '/pages/user/user' })
+}
+
 const switchUser = () => {
   closeMenu()
-  uni.showModal({
-    title: '切换用户',
-    content: '确定要切换用户吗？',
-    success: (res) => {
-      if (res.confirm) {
-        uni.reLaunch({ url: '/pages/login/login' })
-      }
-    }
-  })
+  const userStr = uni.getStorageSync('user')
+  if (userStr) {
+    const user = JSON.parse(userStr)
+    uni.reLaunch({ url: `/pages/login/login?currentUserId=${user.id}` })
+  } else {
+    uni.reLaunch({ url: '/pages/login/login' })
+  }
 }
 
 const handleLogout = () => {

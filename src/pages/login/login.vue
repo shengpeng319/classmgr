@@ -16,6 +16,7 @@
         <view class="user-list">
           <view 
             class="user-item" 
+            :class="{ current: user.id === currentUserId }"
             v-for="user in rememberedUsers" 
             :key="user.id"
             @click="quickLogin(user)"
@@ -24,6 +25,9 @@
             <view class="user-info">
               <text class="user-name">{{ user.name || user.username }}</text>
               <text class="user-role">{{ user.role === 'admin' ? '管理员' : '普通用户' }}</text>
+            </view>
+            <view class="current-badge" v-if="user.id === currentUserId">
+              <text class="current-text">当前</text>
             </view>
             <view class="remove-btn" @click.stop="removeRememberedUser(user.id)">
               <text class="remove-text">×</text>
@@ -98,6 +102,7 @@ const errorMsg = ref('')
 const rememberMe = ref(true)
 const rememberedUsers = ref<any[]>([])
 const defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+const currentUserId = ref('')
 
 const loadRememberedUsers = async () => {
   try {
@@ -134,7 +139,7 @@ const quickLogin = async (user: any) => {
       uni.setStorageSync('user', JSON.stringify(res.data.data.user))
       uni.showToast({ title: '登录成功', icon: 'success' })
       setTimeout(() => {
-        uni.reLaunch({ url: '/pages/index/index' })
+        uni.reLaunch({ url: '/pages/today/today' })
       }, 1000)
     } else {
       errorMsg.value = res.data.message || '快速登录失败，请使用密码登录'
@@ -192,7 +197,7 @@ const handleLogin = async () => {
       
       uni.showToast({ title: '登录成功', icon: 'success' })
       setTimeout(() => {
-        uni.reLaunch({ url: '/pages/index/index' })
+        uni.reLaunch({ url: '/pages/today/today' })
       }, 1000)
     } else {
       errorMsg.value = res.data.message || '登录失败'
@@ -205,6 +210,14 @@ const handleLogin = async () => {
 }
 
 onMounted(() => {
+  const pages = getCurrentPages()
+  if (pages.length > 0) {
+    const currentPage = pages[pages.length - 1]
+    const options = (currentPage as any).options || {}
+    if (options.currentUserId) {
+      currentUserId.value = options.currentUserId
+    }
+  }
   loadRememberedUsers()
 })
 </script>
@@ -331,6 +344,11 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
+.user-item.current {
+  background: #E3F2FD;
+  border: 2rpx solid #87CEEB;
+}
+
 .user-item:active {
   background: #F0F0F0;
   transform: scale(0.98);
@@ -359,6 +377,19 @@ onMounted(() => {
   color: #999;
   display: block;
   margin-top: 4rpx;
+}
+
+.current-badge {
+  background: linear-gradient(135deg, #87CEEB, #5BA4C4);
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+  margin-right: 16rpx;
+}
+
+.current-text {
+  font-size: 22rpx;
+  color: #FFFFFF;
+  font-weight: 500;
 }
 
 .remove-btn {
