@@ -21,6 +21,7 @@ model User {
   updatedAt DateTime @updatedAt
   rememberedUsers RememberedUser[]
   tasks     Task[]
+  student   Student?
 }
 
 model RememberedUser {
@@ -39,11 +40,13 @@ model Student {
   name      String
   avatar    String?
   points    Int      @default(0)
+  userId    String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   courses   CourseStudent[]
   records   Record[]
   ownedCards StudentCard[]
+  user      User?    @relation(fields: [userId], references: [id])
 }
 
 model Course {
