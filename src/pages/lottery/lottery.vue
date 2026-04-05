@@ -105,7 +105,7 @@ const getCardEmoji = (rarity: string): string => {
 
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr)
-  return 
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
 }
 
 const loadStudent = async () => {
@@ -197,7 +197,7 @@ onMounted(() => { loadStudent(); loadAvailableCards(); loadMyCards() })
 .draw-text { font-size: 34rpx; font-weight: 600; color: #FFFFFF; }
 .draw-hint { font-size: 24rpx; color: #E05555; margin-top: 16rpx; display: block; }
 .my-cards-section { background: #FFFFFF; border-radius: 24rpx; padding: 30rpx; box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.06); }
-.my-card-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16rpx; }
+.my-card-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16rpx; }
 .my-card-item { text-align: center; }
 .my-card-inner { padding: 16rpx 8rpx; border-radius: 12rpx; }
 .my-card-item.common .my-card-inner { background: #F5F5F5; }
@@ -228,7 +228,7 @@ onMounted(() => { loadStudent(); loadAvailableCards(); loadMyCards() })
 .result-desc { font-size: 26rpx; color: #666; display: block; margin-bottom: 20rpx; }
 .result-cost { position: relative; display: inline-block; background: rgba(0, 0, 0, 0.1); padding: 8rpx 20rpx; border-radius: 20rpx; }
 .cost-text { font-size: 24rpx; color: #666; }
-.result-actions { display: flex; gap: 20rpx; }
+.result-actions { display: flex; gap: 32rpx; }
 .result-btn { flex: 1; height: 88rpx; border-radius: 44rpx; border: none; font-size: 28rpx; }
 .result-btn.continue { background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%); }
 .result-btn.close { background: #F0F0F0; }

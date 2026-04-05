@@ -517,15 +517,18 @@ onMounted(() => {
 .filter-toggle-bar {
   display: flex;
   justify-content: center;
+  align-items: center;
   margin-bottom: 20rpx;
+  padding: 24rpx 32rpx;
+  min-height: 88rpx;
 }
 
 .filter-toggle-text {
   font-size: 24rpx;
   color: #4A9B8E;
   background: #E8F5E9;
-  padding: 12rpx 32rpx;
   border-radius: 30rpx;
+  padding: 12rpx 32rpx;
 }
 
 .filter-section {
@@ -574,7 +577,7 @@ onMounted(() => {
 
 .filter-actions {
   display: flex;
-  gap: 20rpx;
+  gap: 32rpx;
   margin-top: 20rpx;
 }
 
@@ -731,8 +734,10 @@ onMounted(() => {
 }
 
 .action-btn {
-  padding: 12rpx 16rpx;
+  padding: 20rpx 24rpx;
   border-radius: 8rpx;
+  min-width: 96rpx;
+  text-align: center;
 }
 
 .action-btn.edit {

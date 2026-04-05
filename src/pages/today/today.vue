@@ -635,6 +635,15 @@ onMounted(() => {
   padding: 20rpx;
   border-radius: 12rpx;
   font-size: 28rpx;
+  height: 96rpx;
+  box-sizing: border-box;
+  border: 2rpx solid transparent;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  border: 2rpx solid #4A9B8E;
+  outline: none;
 }
 
 .type-selector {
