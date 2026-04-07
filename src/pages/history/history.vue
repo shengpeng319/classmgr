@@ -1,6 +1,7 @@
 <template>
   <view class="container">
-    <CommonHeader title="历史数据" :show-add-btn="true" @add="showAddModal" />
+    <CommonHeader title="历史任务" :show-add-btn="true" @add="showAddModal" />
+    <FilterBar :is-admin="isAdmin" />
 
     <view class="filter-toggle-bar" @click="showFilter = !showFilter">
       <text class="filter-toggle-text">{{ showFilter ? '收起筛选' : '展开筛选' }}</text>
@@ -60,7 +61,7 @@
           <view class="task-header">
             <text class="task-title" :class="{ completed: task.isCompleted }">{{ task.title }}</text>
             <view class="task-tag" :class="task.type">
-              <text class="tag-text">{{ task.type === 'homework' ? '作业' : '课外班' }}</text>
+              <text class="tag-text">{{ getTaskTypeName(task.type) }}</text>
             </view>
             <view class="task-points">
               <text class="points-text">{{ task.points || 5 }}</text>
@@ -73,12 +74,8 @@
           </view>
         </view>
         <view class="task-actions" v-if="isAdmin" @click.stop>
-          <view class="action-btn edit" @click.stop="editTask(task)">
-            <text class="action-text">编辑</text>
-          </view>
-          <view class="action-btn delete" @click.stop="confirmDelete(task)">
-            <text class="action-text">删除</text>
-          </view>
+          <view class="action-icon edit" @click.stop="editTask(task)">✎</view>
+          <view class="action-icon delete" @click.stop="confirmDelete(task)">✕</view>
         </view>
       </view>
 
@@ -117,20 +114,48 @@
 
         <view class="form-item">
           <text class="form-label">类型</text>
-          <view class="type-selector">
-            <view 
-              class="type-btn" 
+          <view class="type-grid">
+            <view
+              class="type-btn"
+              :class="{ active: formData.type === 'school' }"
+              @click="formData.type = 'school'"
+            >
+              <text class="type-btn-text">学校</text>
+            </view>
+            <view
+              class="type-btn"
+              :class="{ active: formData.type === 'tutoring' }"
+              @click="formData.type = 'tutoring'"
+            >
+              <text class="type-btn-text">补习班</text>
+            </view>
+            <view
+              class="type-btn"
               :class="{ active: formData.type === 'homework' }"
               @click="formData.type = 'homework'"
             >
               <text class="type-btn-text">作业</text>
             </view>
-            <view 
-              class="type-btn" 
-              :class="{ active: formData.type === 'extracurricular' }"
-              @click="formData.type = 'extracurricular'"
+            <view
+              class="type-btn"
+              :class="{ active: formData.type === 'sports' }"
+              @click="formData.type = 'sports'"
             >
-              <text class="type-btn-text">课外班</text>
+              <text class="type-btn-text">体育</text>
+            </view>
+            <view
+              class="type-btn"
+              :class="{ active: formData.type === 'art' }"
+              @click="formData.type = 'art'"
+            >
+              <text class="type-btn-text">艺术</text>
+            </view>
+            <view
+              class="type-btn"
+              :class="{ active: formData.type === 'other' }"
+              @click="formData.type = 'other'"
+            >
+              <text class="type-btn-text">其他</text>
             </view>
           </view>
         </view>
@@ -176,9 +201,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { getTasks, updateTask, createTask, updateAdminTask, deleteTask, getUsers, type Task } from '@/api/task'
 import CommonHeader from '@/components/CommonHeader.vue'
+import FilterBar from '@/components/FilterBar.vue'
+import { useUserFilterStore } from '@/stores/userFilter'
+import { storeToRefs } from 'pinia'
+
+const filterStore = useUserFilterStore()
+const { selectedUserIds } = storeToRefs(filterStore)
 
 const loading = ref(false)
 const showModal = ref(false)
@@ -212,11 +243,24 @@ const hasMore = computed(() => {
 const formData = ref({
   userId: '',
   title: '',
-  type: 'homework' as 'homework' | 'extracurricular',
+  type: 'school' as 'school' | 'tutoring' | 'homework' | 'sports' | 'art' | 'other',
   points: 5,
   startDate: '',
   endDate: ''
 })
+
+const typeOptions = [
+  { value: 'school', label: '学校' },
+  { value: 'tutoring', label: '补习班' },
+  { value: 'homework', label: '作业' },
+  { value: 'sports', label: '体育' },
+  { value: 'art', label: '艺术' },
+  { value: 'other', label: '其他' },
+]
+
+const getTaskTypeName = (type: string): string => {
+  return typeOptions.find(t => t.value === type)?.label || type
+}
 
 const getTodayString = () => {
   const today = new Date()
@@ -265,8 +309,10 @@ const loadUsers = async () => {
     console.log('loadUsers response:', res)
     if (res && res.data) {
       allUsers.value = res.data || []
+      filterStore.initUsers(res.data || [])
     } else if (res && Array.isArray(res)) {
       allUsers.value = res
+      filterStore.initUsers(res)
     }
   } catch (e) {
     console.error('Failed to load users', e)
@@ -276,31 +322,31 @@ const loadUsers = async () => {
 const loadTasks = async () => {
   loading.value = true
   try {
-    const res: any = isAdmin.value && userOptions.value[userIndex.value]?.id
-      ? await getTasks({ startDate: filterStartDate.value, endDate: filterEndDate.value })
-      : await getTasks({ startDate: filterStartDate.value, endDate: filterEndDate.value })
+    let allTasks: Task[] = []
     
-    if (res && res.data) {
-      let data = res.data || []
-      
-      // Extract unique users from tasks for the filter
-      if (isAdmin.value && allUsers.value.length === 0) {
-        const userMap = new Map<string, { id: string; username: string; name?: string; role: string }>()
-        data.forEach((t: Task) => {
-          if (t.user && !userMap.has(t.user.id)) {
-            userMap.set(t.user.id, t.user)
-          }
-        })
-        allUsers.value = Array.from(userMap.values())
+    if (isAdmin.value && selectedUserIds.value.length > 0) {
+      const promises = selectedUserIds.value.map(userId => 
+        getTasks({ userId, startDate: filterStartDate.value, endDate: filterEndDate.value })
+      )
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res && res.data) {
+          allTasks = allTasks.concat(res.data)
+        }
       }
-      
-      // Admin filter by user
-      if (isAdmin.value && userOptions.value[userIndex.value]?.id) {
-        data = data.filter((t: Task) => t.userId === userOptions.value[userIndex.value].id)
+    } else if (isAdmin.value) {
+      const res: any = await getTasks({ startDate: filterStartDate.value, endDate: filterEndDate.value })
+      if (res && res.data) {
+        allTasks = res.data || []
       }
-      
-      tasks.value = data
+    } else {
+      const res: any = await getTasks({ startDate: filterStartDate.value, endDate: filterEndDate.value })
+      if (res && res.data) {
+        allTasks = res.data || []
+      }
     }
+    
+    tasks.value = allTasks
   } catch (e) {
     console.error('Failed to load tasks', e)
   } finally {
@@ -358,7 +404,7 @@ const showAddModal = () => {
   formData.value = {
     userId: allUsers.value[0]?.id || '',
     title: '',
-    type: 'homework',
+    type: 'school',
     points: 5,
     startDate: getTodayString(),
     endDate: getTodayString()
@@ -374,7 +420,7 @@ const editTask = (task: Task) => {
   Object.assign(formData.value, {
     userId: task.userId,
     title: task.title,
-    type: task.type as 'homework' | 'extracurricular',
+    type: task.type as 'school' | 'tutoring' | 'homework' | 'sports' | 'art' | 'other',
     points: task.points || 5,
     startDate: toLocalDateString(task.startDate),
     endDate: toLocalDateString(task.endDate)
@@ -487,6 +533,12 @@ onMounted(() => {
   loadUsers()
   loadTasks()
 })
+
+watch(selectedUserIds, () => {
+  if (isAdmin.value) {
+    loadTasks()
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -679,14 +731,34 @@ onMounted(() => {
   font-size: 22rpx;
 }
 
-.task-tag.homework {
+.task-tag.school {
   background: #E3F2FD;
   color: #1976D2;
 }
 
-.task-tag.extracurricular {
+.task-tag.tutoring {
+  background: #FFF3E0;
+  color: #E65100;
+}
+
+.task-tag.homework {
   background: #F3E5F5;
   color: #7B1FA2;
+}
+
+.task-tag.sports {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+
+.task-tag.art {
+  background: #FCE4EC;
+  color: #C2185B;
+}
+
+.task-tag.other {
+  background: #ECEFF1;
+  color: #546E7A;
 }
 
 .tag-text {
@@ -729,35 +801,27 @@ onMounted(() => {
 
 .task-actions {
   display: flex;
-  gap: 12rpx;
+  gap: 8rpx;
   margin-left: 16rpx;
 }
 
-.action-btn {
-  padding: 20rpx 24rpx;
+.action-icon {
+  width: 48rpx;
+  height: 48rpx;
   border-radius: 8rpx;
-  min-width: 96rpx;
-  text-align: center;
-}
-
-.action-btn.edit {
-  background: #E3F2FD;
-}
-
-.action-btn.delete {
-  background: #FFE5E5;
-}
-
-.action-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24rpx;
-  font-weight: 500;
 }
 
-.action-btn.edit .action-text {
+.action-icon.edit {
+  background: #E3F2FD;
   color: #1976D2;
 }
 
-.action-btn.delete .action-text {
+.action-icon.delete {
+  background: #FFE5E5;
   color: #E05555;
 }
 
@@ -805,10 +869,11 @@ onMounted(() => {
 
 .modal-content {
   width: 600rpx;
-  max-height: 80vh;
+  max-height: 90vh;
   background: #FFFFFF;
   border-radius: 24rpx;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-header {
@@ -857,14 +922,15 @@ onMounted(() => {
   font-size: 28rpx;
 }
 
-.type-selector {
+.type-grid {
   display: flex;
-  gap: 16rpx;
+  flex-wrap: wrap;
+  gap: 12rpx;
 }
 
 .type-btn {
-  flex: 1;
-  padding: 16rpx;
+  width: calc(33.33% - 8rpx);
+  padding: 16rpx 8rpx;
   background: #F8F9FA;
   border-radius: 12rpx;
   text-align: center;

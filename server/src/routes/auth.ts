@@ -60,7 +60,9 @@ export function authRoutes(router: Router) {
           username: user.username,
           role: user.role,
           name: user.name,
-          avatar: user.avatar
+          gender: user.gender,
+          age: user.age,
+          phone: user.phone
         }
       }
     }
@@ -111,8 +113,15 @@ export function authRoutes(router: Router) {
         username: user.username,
         role: user.role,
         name: user.name,
-        avatar: user.avatar
+        gender: user.gender,
+        age: user.age,
+        phone: user.phone
       }
+    }
+    
+    // Only send avatar if it's a URL/path, not base64
+    if (user.avatar && !user.avatar.startsWith('data:image')) {
+      responseData.user.avatar = user.avatar
     }
 
     if (remember && deviceId) {
@@ -188,18 +197,26 @@ export function authRoutes(router: Router) {
       role: user.role
     })
 
+    const userData: any = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      name: user.name,
+      gender: user.gender,
+      age: user.age,
+      phone: user.phone
+    }
+    
+    if (user.avatar && !user.avatar.startsWith('data:image')) {
+      userData.avatar = user.avatar
+    }
+
     ctx.body = {
       code: 0,
       message: 'ok',
       data: {
         token,
-        user: {
-          id: user.id,
-          username: user.username,
-          role: user.role,
-          name: user.name,
-          avatar: user.avatar
-        }
+        user: userData
       }
     }
   })
@@ -216,7 +233,10 @@ export function authRoutes(router: Router) {
             username: true,
             role: true,
             name: true,
-            avatar: true
+            avatar: true,
+            gender: true,
+            age: true,
+            phone: true
           }
         }
       },
@@ -226,7 +246,13 @@ export function authRoutes(router: Router) {
     ctx.body = {
       code: 0,
       message: 'ok',
-      data: remembered.map(r => r.user)
+      data: remembered.map(r => {
+        const { avatar, ...rest } = r.user
+        return {
+          ...rest,
+          ...(avatar && !avatar.startsWith('data:image') ? { avatar } : {})
+        }
+      })
     }
   })
 

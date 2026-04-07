@@ -3,9 +3,9 @@ import { prisma } from '../utils/prisma'
 
 export function recordRoutes(router: Router) {
   router.get('/records', async (ctx) => {
-    const { studentId, courseId, startDate, endDate } = ctx.query
+    const { userId, courseId, startDate, endDate } = ctx.query
     const where: any = {}
-    if (studentId) where.studentId = studentId
+    if (userId) where.userId = userId
     if (courseId) where.courseId = courseId
     if (startDate || endDate) {
       where.date = {}
@@ -15,14 +15,14 @@ export function recordRoutes(router: Router) {
     const records = await prisma.record.findMany({
       where,
       orderBy: { date: 'desc' },
-      include: { student: true }
+      include: { user: true }
     })
     ctx.body = { code: 0, message: 'ok', data: records }
   })
 
   router.post('/records', async (ctx) => {
-    const { studentId, courseId, date, status, note, pointsEarned } = ctx.request.body as {
-      studentId: string
+    const { userId, courseId, date, status, note, pointsEarned } = ctx.request.body as {
+      userId: string
       courseId: string
       date: string
       status: string
@@ -30,7 +30,7 @@ export function recordRoutes(router: Router) {
       pointsEarned?: number
     }
     const record = await prisma.record.create({
-      data: { studentId, courseId, date: new Date(date), status, note, pointsEarned: pointsEarned || 0 }
+      data: { userId, courseId, date: new Date(date), status, note, pointsEarned: pointsEarned || 0 }
     })
     ctx.status = 201
     ctx.body = { code: 0, message: 'ok', data: record }

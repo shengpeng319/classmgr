@@ -10,6 +10,7 @@ export function userRoutes(router: Router) {
         id: true,
         username: true,
         name: true,
+        avatar: true,
         role: true,
         createdAt: true,
         updatedAt: true

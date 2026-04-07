@@ -5,6 +5,12 @@
       <view class="add-btn" v-if="showAddBtn && isAdmin" @click="$emit('add')">
         <text class="add-btn-text">+ 添加</text>
       </view>
+      <view class="week-btn" v-if="showWeekBtn && isAdmin" @click="$emit('week')">
+        <text class="week-btn-text">回到本周</text>
+      </view>
+      <view class="import-btn" v-if="showImportBtn && isAdmin" @click="$emit('import')">
+        <text class="import-btn-text">导入...</text>
+      </view>
     </view>
     <view class="header-right">
       <view class="user-area" @click="toggleMenu">
@@ -49,10 +55,14 @@ import { ref, onMounted } from 'vue'
 defineProps<{
   title?: string
   showAddBtn?: boolean
+  showWeekBtn?: boolean
+  showImportBtn?: boolean
 }>()
 
 defineEmits<{
   add: []
+  week: []
+  import: []
 }>()
 
 const showMenu = ref(false)
@@ -195,6 +205,30 @@ onMounted(() => {
 .add-btn-text {
   font-size: 24rpx;
   color: #FFFFFF;
+  font-weight: 500;
+}
+
+.week-btn {
+  padding: 8rpx 20rpx;
+  background: #FFF3E0;
+  border-radius: 8rpx;
+}
+
+.week-btn-text {
+  font-size: 24rpx;
+  color: #E65100;
+  font-weight: 500;
+}
+
+.import-btn {
+  padding: 8rpx 20rpx;
+  background: #E3F2FD;
+  border-radius: 8rpx;
+}
+
+.import-btn-text {
+  font-size: 24rpx;
+  color: #1976D2;
   font-weight: 500;
 }
 

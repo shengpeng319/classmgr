@@ -1,5 +1,4 @@
 import Router from 'koa-router'
-import { studentRoutes } from './student'
 import { courseRoutes } from './course'
 import { recordRoutes } from './record'
 import { cardRoutes } from './card'
@@ -8,6 +7,7 @@ import { authRoutes } from './auth'
 import { userRoutes } from './user'
 import { profileRoutes } from './profile'
 import { taskRoutes } from './task'
+import { scheduleRoutes } from './schedule'
 
 export const router = new Router({ prefix: '/api' })
 
@@ -15,9 +15,9 @@ export const router = new Router({ prefix: '/api' })
 authRoutes(router)
 userRoutes(router)
 profileRoutes(router)
-studentRoutes(router)
 courseRoutes(router)
 recordRoutes(router)
 cardRoutes(router)
 lotteryRoutes(router)
 taskRoutes(router)
+scheduleRoutes(router)

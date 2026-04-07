@@ -34,7 +34,19 @@
       }
     },
     {
+      "path": "pages/schedule/schedule",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/lottery/lottery",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/points/points",
       "style": {
         "navigationStyle": "custom"
       }
@@ -70,21 +82,27 @@
     "list": [
       {
         "pagePath": "pages/today/today",
-        "text": "今日一览",
+        "text": "今日任务",
         "iconPath": "static/tabs/today.png",
         "selectedIconPath": "static/tabs/today-active.png"
       },
       {
         "pagePath": "pages/history/history",
-        "text": "历史数据",
+        "text": "历史任务",
         "iconPath": "static/tabs/history.png",
         "selectedIconPath": "static/tabs/history-active.png"
       },
       {
-        "pagePath": "pages/lottery/lottery",
-        "text": "积分抽卡",
-        "iconPath": "static/tabs/lottery.png",
-        "selectedIconPath": "static/tabs/lottery-active.png"
+        "pagePath": "pages/schedule/schedule",
+        "text": "课程表",
+        "iconPath": "static/tabs/schedule.png",
+        "selectedIconPath": "static/tabs/schedule-active.png"
+      },
+      {
+        "pagePath": "pages/points/points",
+        "text": "积分",
+        "iconPath": "static/tabs/points.png",
+        "selectedIconPath": "static/tabs/points-active.png"
       }
     ]
   },

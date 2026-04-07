@@ -86,13 +86,61 @@ const loadProfile = () => {
       age: user.age || '',
       phone: user.phone || ''
     }
-    if (user.avatar && (user.avatar.startsWith('data:image') || user.avatar.startsWith('http'))) {
-      avatarUrl.value = user.avatar
+    if (user.avatar) {
+      if (user.avatar.startsWith('data:image') || user.avatar.startsWith('http')) {
+        avatarUrl.value = user.avatar
+      } else if (user.avatar.startsWith('/')) {
+        avatarUrl.value = 'http://192.168.101.50:3000' + user.avatar
+      } else {
+        avatarUrl.value = defaultAvatars[0]
+      }
     } else {
       avatarUrl.value = defaultAvatars[0]
     }
   } else {
     avatarUrl.value = defaultAvatars[0]
+  }
+}
+
+const loadProfileFromServer = async () => {
+  try {
+    const token = uni.getStorageSync('token')
+    const res = await uni.request({
+      url: 'http://192.168.101.50:3000/api/profile',
+      method: 'GET',
+      header: {
+        Authorization: `Bearer ${token}`
+      }
+    }) as any
+
+    if (res.data.code === 0) {
+      const serverUser = res.data.data
+      formData.value = {
+        name: serverUser.name || '',
+        gender: serverUser.gender || 'male',
+        age: serverUser.age || '',
+        phone: serverUser.phone || ''
+      }
+      
+      if (serverUser.avatar) {
+        if (serverUser.avatar.startsWith('data:image')) {
+          avatarUrl.value = serverUser.avatar
+        } else if (serverUser.avatar.startsWith('http')) {
+          avatarUrl.value = serverUser.avatar
+        } else {
+          avatarUrl.value = 'http://192.168.101.50:3000' + serverUser.avatar
+        }
+      }
+      
+      const userStr = uni.getStorageSync('user')
+      if (userStr) {
+        const localUser = JSON.parse(userStr)
+        const mergedUser = { ...localUser, ...serverUser }
+        uni.setStorageSync('user', JSON.stringify(mergedUser))
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load profile from server', e)
   }
 }
 
@@ -110,11 +158,35 @@ const changeAvatar = () => {
             const tempFilePath = res.tempFilePaths[0]
             
             try {
-              const base64 = await fileToBase64(tempFilePath)
+              // Try to compress image first on native platforms
+              let compressedPath = tempFilePath
+              
+              // @ts-ignore - compressImage may not exist on all platforms
+              if (uni.compressImage) {
+                try {
+                  const compressRes = await new Promise((resolve, reject) => {
+                    // @ts-ignore
+                    uni.compressImage({
+                      src: tempFilePath,
+                      quality: 50,
+                      success: resolve,
+                      fail: reject
+                    })
+                  })
+                  if (compressRes.tempFilePath) {
+                    compressedPath = compressRes.tempFilePath
+                  }
+                } catch (e) {
+                  console.log('Compress failed, using original')
+                }
+              }
+              
+              const base64 = await fileToBase64(compressedPath)
               avatarUrl.value = base64
               uni.showToast({ title: '头像已选择', icon: 'success' })
             } catch (e) {
               console.error('Failed to convert to base64', e)
+              // Fallback to original path if compression/conversion fails
               avatarUrl.value = tempFilePath
             }
           },
@@ -135,16 +207,13 @@ const fileToBase64 = (filePath: string): Promise<string> => {
       fetch(filePath)
         .then(resp => resp.blob())
         .then(blob => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(blob)
+          compressImage(blob).then(resolve).catch(reject)
         })
         .catch(reject)
       return
     }
     
-    // For native platforms, use uni API
+    // For native platforms, use uni API and compress
     const fs = uni.getFileSystemManager()
     fs.readFile({
       filePath,
@@ -155,6 +224,45 @@ const fileToBase64 = (filePath: string): Promise<string> => {
       },
       fail: reject
     })
+  })
+}
+
+const compressImage = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')!
+        
+        // Resize to max 200x200
+        const maxSize = 200
+        let width = img.width
+        let height = img.height
+        if (width > height) {
+          if (width > maxSize) {
+            height *= maxSize / width
+            width = maxSize
+          }
+        } else {
+          if (height > maxSize) {
+            width *= maxSize / height
+            height = maxSize
+          }
+        }
+        
+        canvas.width = width
+        canvas.height = height
+        ctx.drawImage(img, 0, 0, width, height)
+        
+        resolve(canvas.toDataURL('image/jpeg', 0.7))
+      }
+      img.onerror = reject
+      img.src = reader.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
   })
 }
 
@@ -171,6 +279,28 @@ const handleSave = async () => {
     const userStr = uni.getStorageSync('user')
     const user = JSON.parse(userStr)
 
+    // Upload avatar first if it's base64
+    let finalAvatar = avatarUrl.value
+    if (avatarUrl.value && avatarUrl.value.startsWith('data:image')) {
+      try {
+        const uploadRes = await uni.request({
+          url: 'http://192.168.101.50:3000/api/profile/avatar',
+          method: 'POST',
+          data: { avatar: avatarUrl.value },
+          header: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }) as any
+        
+        if (uploadRes.data.code === 0) {
+          finalAvatar = 'http://192.168.101.50:3000' + uploadRes.data.data.avatar
+        }
+      } catch (e) {
+        console.error('Avatar upload failed, using base64 direct', e)
+      }
+    }
+
     const res = await uni.request({
       url: `http://192.168.101.50:3000/api/profile`,
       method: 'PUT',
@@ -179,7 +309,7 @@ const handleSave = async () => {
         gender: formData.value.gender,
         age: parseInt(formData.value.age) || 0,
         phone: formData.value.phone,
-        avatar: avatarUrl.value
+        avatar: finalAvatar
       },
       header: {
         Authorization: `Bearer ${token}`,
@@ -188,14 +318,16 @@ const handleSave = async () => {
     }) as any
 
     if (res.data.code === 0) {
-      const updatedUser = { ...user, ...formData.value, avatar: avatarUrl.value }
+      const updatedUser = { ...user, ...formData.value, avatar: finalAvatar }
       uni.setStorageSync('user', JSON.stringify(updatedUser))
+      avatarUrl.value = finalAvatar
       uni.showToast({ title: '保存成功', icon: 'success' })
     } else {
       uni.showToast({ title: res.data.message || '保存失败', icon: 'none' })
     }
-  } catch (e) {
-    uni.showToast({ title: '网络错误', icon: 'none' })
+  } catch (e: any) {
+    console.error('Save profile error:', e)
+    uni.showToast({ title: e.message || '网络错误', icon: 'none' })
   } finally {
     saving.value = false
   }
@@ -216,6 +348,7 @@ const handleLogout = () => {
 
 onMounted(() => {
   loadProfile()
+  loadProfileFromServer()
 })
 </script>
 

@@ -1,19 +1,10 @@
 <template>
   <view class="container">
-    <CommonHeader title="积分抽卡" />
+    <CommonHeader title="抽卡" />
     <view class="content">
-      <view class="points-section">
-        <view class="points-card">
-          <view class="points-icon"><text class="points-star">★</text></view>
-          <view class="points-info">
-            <text class="points-label">我的积分</text>
-            <text class="points-value">{{ student?.points ?? 0 }}</text>
-          </view>
-        </view>
-      </view>
       <view class="pool-section">
         <view class="section-header">
-          <text class="section-title">可抽取卡池</text>
+          <text class="section-title">卡池</text>
           <text class="card-count">{{ availableCards.length }} 张卡牌</text>
         </view>
         <view class="card-grid" v-if="!loadingCards && availableCards.length > 0">
@@ -22,7 +13,6 @@
               <view class="card-rarity-badge" :class="card.rarity">{{ getRarityText(card.rarity) }}</view>
               <view class="card-image-placeholder"><text class="card-emoji">{{ getCardEmoji(card.rarity) }}</text></view>
               <text class="card-name">{{ card.name }}</text>
-              <view class="card-cost"><text class="cost-icon">★</text><text class="cost-value">{{ card.pointsCost }}</text></view>
             </view>
           </view>
         </view>
@@ -30,11 +20,10 @@
         <view class="loading-pool" v-else><text class="loading-text">加载中...</text></view>
       </view>
       <view class="draw-section">
-        <button class="draw-btn" :class="{ disabled: isDrawing || !canDraw }" @click="handleDraw" :disabled="isDrawing || !canDraw">
-          <view class="draw-btn-inner" v-if="!isDrawing"><text class="draw-icon">✨</text><text class="draw-text">立即抽卡</text></view>
+        <button class="draw-btn" :class="{ disabled: isDrawing }" @click="handleDraw" :disabled="isDrawing">
+          <view class="draw-btn-inner" v-if="!isDrawing"><text class="draw-icon">✨</text><text class="draw-text">免费抽卡</text></view>
           <view class="draw-btn-inner" v-else><text class="draw-text">抽卡中...</text></view>
         </button>
-        <text class="draw-hint" v-if="!canDraw && !isDrawing">积分不足，无法抽卡</text>
       </view>
       <view class="my-cards-section">
         <view class="section-header">
@@ -63,7 +52,6 @@
           <view class="result-image"><text class="result-emoji">{{ getCardEmoji(drawnCard?.rarity || 'common') }}</text></view>
           <text class="result-name">{{ drawnCard?.name }}</text>
           <text class="result-desc" v-if="drawnCard?.description">{{ drawnCard.description }}</text>
-          <view class="result-cost"><text class="cost-text">消耗 {{ drawnCard?.pointsCost }} 积分</text></view>
         </view>
         <view class="result-actions">
           <button class="result-btn continue" @click="closeResult"><text class="btn-text">再来一次</text></button>
@@ -74,12 +62,11 @@
   </view>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
+import { ref, onMounted } from "vue"
 import CommonHeader from "@/components/CommonHeader.vue"
-import { getLotteryStudent, getLotteryCards, drawCard, getMyCards } from "@/api/lottery"
-import type { Card, Student, DrawResult, StudentCard } from "@/api/lottery"
+import { getLotteryCards, drawCard, getMyCards } from "@/api/lottery"
+import type { Card, DrawResult, StudentCard } from "@/api/lottery"
 
-const student = ref<Student | null>(null)
 const availableCards = ref<Card[]>([])
 const myCards = ref<StudentCard[]>([])
 const loadingCards = ref(false)
@@ -87,11 +74,6 @@ const loadingMyCards = ref(false)
 const isDrawing = ref(false)
 const showResult = ref(false)
 const drawnCard = ref<Card | null>(null)
-
-const canDraw = computed(() => {
-  if (!student.value) return false
-  return availableCards.value.some(card => card.pointsCost <= student.value!.points)
-})
 
 const getRarityText = (rarity: string): string => {
   const map: Record<string, string> = { common: "普通", rare: "稀有", epic: "史诗", legendary: "传说" }
@@ -106,13 +88,6 @@ const getCardEmoji = (rarity: string): string => {
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr)
   return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
-}
-
-const loadStudent = async () => {
-  try {
-    const res = await getLotteryStudent()
-    if (res.code === 0) student.value = res.data
-  } catch (e) { console.error("Failed to load student", e) }
 }
 
 const loadAvailableCards = async () => {
@@ -134,13 +109,12 @@ const loadMyCards = async () => {
 }
 
 const handleDraw = async () => {
-  if (isDrawing.value || !canDraw.value) return
+  if (isDrawing.value) return
   isDrawing.value = true
   try {
     const res = await drawCard()
     if (res.code === 0) {
       drawnCard.value = res.data.card
-      student.value!.points = res.data.remainingPoints
       showResult.value = true
       loadMyCards()
     } else {
@@ -152,18 +126,11 @@ const handleDraw = async () => {
 
 const closeResult = () => { showResult.value = false; drawnCard.value = null }
 
-onMounted(() => { loadStudent(); loadAvailableCards(); loadMyCards() })
+onMounted(() => { loadAvailableCards(); loadMyCards() })
 </script>
 <style scoped>
 .container { min-height: 100vh; background: linear-gradient(180deg, #FFF5E6 0%, #FFE5E5 50%, #F0F8FF 100%); padding: 20rpx 30rpx; }
 .content { padding-top: 20rpx; }
-.points-section { margin-bottom: 30rpx; }
-.points-card { display: flex; align-items: center; background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); border-radius: 24rpx; padding: 30rpx; box-shadow: 0 8rpx 20rpx rgba(255, 165, 0, 0.3); }
-.points-icon { width: 100rpx; height: 100rpx; background: rgba(255, 255, 255, 0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 24rpx; }
-.points-star { font-size: 50rpx; color: #FFFFFF; }
-.points-info { flex: 1; }
-.points-label { font-size: 26rpx; color: rgba(255, 255, 255, 0.9); display: block; margin-bottom: 8rpx; }
-.points-value { font-size: 48rpx; font-weight: bold; color: #FFFFFF; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24rpx; }
 .section-title { font-size: 32rpx; font-weight: 600; color: #333; }
 .card-count { font-size: 24rpx; color: #999; }
@@ -184,9 +151,6 @@ onMounted(() => { loadStudent(); loadAvailableCards(); loadMyCards() })
 .card-image-placeholder { width: 80rpx; height: 80rpx; margin: 0 auto 12rpx; display: flex; align-items: center; justify-content: center; }
 .card-emoji { font-size: 60rpx; }
 .card-name { font-size: 24rpx; color: #333; display: block; margin-bottom: 8rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-cost { display: flex; align-items: center; justify-content: center; gap: 4rpx; }
-.cost-icon { font-size: 20rpx; color: #FFD700; }
-.cost-value { font-size: 22rpx; color: #E88D00; font-weight: 600; }
 .empty-pool, .empty-my-cards { text-align: center; padding: 40rpx 0; }
 .empty-text, .loading-text { font-size: 28rpx; color: #AAA; }
 .draw-section { margin-bottom: 30rpx; text-align: center; }
@@ -195,7 +159,6 @@ onMounted(() => { loadStudent(); loadAvailableCards(); loadMyCards() })
 .draw-btn-inner { display: flex; align-items: center; justify-content: center; gap: 12rpx; }
 .draw-icon { font-size: 36rpx; }
 .draw-text { font-size: 34rpx; font-weight: 600; color: #FFFFFF; }
-.draw-hint { font-size: 24rpx; color: #E05555; margin-top: 16rpx; display: block; }
 .my-cards-section { background: #FFFFFF; border-radius: 24rpx; padding: 30rpx; box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.06); }
 .my-card-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16rpx; }
 .my-card-item { text-align: center; }
@@ -226,8 +189,6 @@ onMounted(() => { loadStudent(); loadAvailableCards(); loadMyCards() })
 @keyframes bounce-in { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
 .result-name { position: relative; font-size: 36rpx; font-weight: bold; color: #333; display: block; margin-bottom: 12rpx; }
 .result-desc { font-size: 26rpx; color: #666; display: block; margin-bottom: 20rpx; }
-.result-cost { position: relative; display: inline-block; background: rgba(0, 0, 0, 0.1); padding: 8rpx 20rpx; border-radius: 20rpx; }
-.cost-text { font-size: 24rpx; color: #666; }
 .result-actions { display: flex; gap: 32rpx; }
 .result-btn { flex: 1; height: 88rpx; border-radius: 44rpx; border: none; font-size: 28rpx; }
 .result-btn.continue { background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%); }

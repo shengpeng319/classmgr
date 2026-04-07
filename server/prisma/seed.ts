@@ -9,12 +9,6 @@ function getDateMinusDays(days: number): Date {
   return new Date(date.toISOString().split('T')[0] + 'T00:00:00.000Z')
 }
 
-function getDateStr(days: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() - days)
-  return date.toISOString().split('T')[0]
-}
-
 async function main() {
   const adminPassword = await bcrypt.hash('admin123', 10)
   await prisma.user.upsert({
@@ -23,7 +17,8 @@ async function main() {
     create: {
       username: 'admin',
       password: adminPassword,
-      role: 'admin'
+      role: 'admin',
+      points: 0
     }
   })
 
@@ -34,7 +29,8 @@ async function main() {
     create: {
       username: 'user',
       password: userPassword,
-      role: 'user'
+      role: 'user',
+      points: 100
     }
   })
 
@@ -46,7 +42,8 @@ async function main() {
       username: 'daniel',
       password: danielPassword,
       role: 'user',
-      name: 'Daniel'
+      name: 'Daniel',
+      points: 100
     }
   })
 
@@ -58,7 +55,8 @@ async function main() {
       username: 'sophia',
       password: sophiaPassword,
       role: 'user',
-      name: 'Sophia'
+      name: 'Sophia',
+      points: 80
     }
   })
 
@@ -78,7 +76,7 @@ async function main() {
         },
         {
           title: i % 3 === 0 ? '钢琴课' : '绘画课',
-          type: 'extracurricular',
+          type: 'art',
           points: Math.floor(Math.random() * 5) + 1,
           userId: daniel.id,
           startDate: getDateMinusDays(i + 7),
@@ -89,6 +87,22 @@ async function main() {
     }
     await prisma.task.createMany({ data: danielTasks })
     console.log(`Created ${danielTasks.length} tasks for daniel`)
+  }
+
+  const existingDanielSchedules = await prisma.schedule.count({ where: { userId: daniel.id } })
+  if (existingDanielSchedules === 0) {
+    await prisma.schedule.createMany({
+      data: [
+        { name: '数学', dayOfWeek: '1,3,5', startTime: '09:00', endTime: '10:00', location: '教室A', type: 'school', color: '#FFD93D', isDailyTask: true, points: 2, userId: daniel.id, startDate: null, endDate: null },
+        { name: '语文', dayOfWeek: '2,4', startTime: '14:00', endTime: '15:00', location: '教室B', type: 'school', color: '#98D8C8', isDailyTask: false, points: 1, userId: daniel.id, startDate: null, endDate: null },
+        { name: '英语补习', dayOfWeek: '1,5', startTime: '10:00', endTime: '11:00', location: '教室C', type: 'tutoring', color: '#FF8B8B', isDailyTask: true, points: 3, userId: daniel.id, startDate: null, endDate: null },
+        { name: '钢琴', dayOfWeek: '3,6', startTime: '16:00', endTime: '17:30', location: '音乐教室', type: 'art', color: '#A8D8EA', isDailyTask: false, points: 1, userId: daniel.id, startDate: null, endDate: null },
+        { name: '绘画', dayOfWeek: '2,4', startTime: '15:00', endTime: '16:00', location: '美术教室', type: 'art', color: '#DDA0DD', isDailyTask: true, points: 2, userId: daniel.id, startDate: null, endDate: null },
+        { name: '游泳', dayOfWeek: '6', startTime: '10:00', endTime: '11:00', location: '游泳馆', type: 'sports', color: '#87CEEB', isDailyTask: false, points: 1, userId: daniel.id, startDate: null, endDate: null },
+        { name: '象棋', dayOfWeek: '0,6', startTime: '14:00', endTime: '15:00', location: '活动室', type: 'other', color: '#DEB887', isDailyTask: false, points: 1, userId: daniel.id, startDate: null, endDate: null },
+      ]
+    })
+    console.log('Created schedules for daniel')
   }
 
   const existingSophiaTasks = await prisma.task.count({ where: { userId: sophia.id } })
@@ -107,7 +121,7 @@ async function main() {
         },
         {
           title: i % 2 === 0 ? '舞蹈课' : '小提琴课',
-          type: 'extracurricular',
+          type: 'art',
           points: Math.floor(Math.random() * 5) + 1,
           userId: sophia.id,
           startDate: getDateMinusDays(i + 7),
@@ -120,14 +134,20 @@ async function main() {
     console.log(`Created ${sophiaTasks.length} tasks for sophia`)
   }
 
-  const existingStudents = await prisma.student.count()
-  if (existingStudents === 0) {
-    await prisma.student.createMany({
+  const existingSophiaSchedules = await prisma.schedule.count({ where: { userId: sophia.id } })
+  if (existingSophiaSchedules === 0) {
+    await prisma.schedule.createMany({
       data: [
-        { name: '小明', points: 100 },
-        { name: '小红', points: 80 }
+        { name: '舞蹈', dayOfWeek: '1,3', startTime: '10:00', endTime: '11:30', location: '舞蹈教室', type: 'sports', color: '#FF69B4', isDailyTask: true, points: 2, userId: sophia.id, startDate: null, endDate: null },
+        { name: '小提琴', dayOfWeek: '2,5', startTime: '15:00', endTime: '16:00', location: '音乐教室', type: 'art', color: '#9370DB', isDailyTask: false, points: 1, userId: sophia.id, startDate: null, endDate: null },
+        { name: '语文', dayOfWeek: '1,4', startTime: '09:00', endTime: '10:00', location: '教室A', type: 'school', color: '#98D8C8', isDailyTask: true, points: 3, userId: sophia.id, startDate: null, endDate: null },
+        { name: '英语补习', dayOfWeek: '2,5', startTime: '14:00', endTime: '15:00', location: '教室B', type: 'tutoring', color: '#FFB6C1', isDailyTask: false, points: 1, userId: sophia.id, startDate: null, endDate: null },
+        { name: '绘画', dayOfWeek: '3,6', startTime: '16:00', endTime: '17:00', location: '美术教室', type: 'art', color: '#DDA0DD', isDailyTask: true, points: 2, userId: sophia.id, startDate: null, endDate: null },
+        { name: '钢琴', dayOfWeek: '4,6', startTime: '10:00', endTime: '11:00', location: '音乐教室', type: 'art', color: '#F0E68C', isDailyTask: false, points: 1, userId: sophia.id, startDate: null, endDate: null },
+        { name: '书法', dayOfWeek: '0,6', startTime: '09:00', endTime: '10:00', location: '书法教室', type: 'art', color: '#8FBC8F', isDailyTask: false, points: 1, userId: sophia.id, startDate: null, endDate: null },
       ]
     })
+    console.log('Created schedules for sophia')
   }
 
   const existingCourses = await prisma.course.count()

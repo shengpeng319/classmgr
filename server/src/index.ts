@@ -1,8 +1,13 @@
 import Koa from 'koa'
 import { router } from './routes'
 import { errorHandler } from './middleware/errorHandler'
+import { startDailyTaskCron } from './cron/dailyTask'
+import * as fs from 'fs'
+import * as path from 'path'
 
 const app = new Koa()
+
+startDailyTaskCron()
 
 app.use(errorHandler)
 
@@ -27,11 +32,24 @@ app.use(async (ctx, next) => {
         chunks.push(chunk)
       }
       const body = Buffer.concat(chunks).toString()
-      if (body) {
+      if (body && body.length < 10 * 1024 * 1024) { // 10MB limit
         ctx.request.body = JSON.parse(body)
       }
     } catch (e) {
       // ignore parse errors
+    }
+  }
+  await next()
+})
+
+// Serve avatar files
+app.use(async (ctx, next) => {
+  if (ctx.path.startsWith('/uploads/')) {
+    const filepath = path.join(__dirname, '..', ctx.path)
+    if (fs.existsSync(filepath)) {
+      ctx.type = 'image/jpeg'
+      ctx.body = fs.createReadStream(filepath)
+      return
     }
   }
   await next()

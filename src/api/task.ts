@@ -10,7 +10,7 @@ export interface TaskUser {
 export interface Task {
   id: string
   title: string
-  type: 'homework' | 'extracurricular'
+  type: 'school' | 'tutoring' | 'homework' | 'sports' | 'art' | 'other'
   points: number
   isCompleted: boolean
   completedAt?: string
@@ -80,6 +80,34 @@ export function deleteTask(id: string) {
   return request({ url: `/admin/tasks/${id}`, method: 'DELETE' })
 }
 
+export function generateDailyTasks() {
+  return request({ url: '/admin/tasks/generate-daily', method: 'POST' })
+}
+
+export interface PointRecord {
+  id: string
+  userId: string
+  taskId?: string
+  taskTitle: string
+  points: number
+  reason: string
+  createdAt: string
+}
+
+export function getPointRecords() {
+  return request<PointRecord[]>({ url: '/point-records' })
+}
+
+export function getAdminPointRecords(userId?: string) {
+  let url = '/admin/point-records'
+  if (userId) url += `?userId=${userId}`
+  return request<PointRecord[]>({ url })
+}
+
+export function getAdminUserPoints(userId: string) {
+  return request<{ id: string; name?: string; avatar?: string; points: number }>({ url: `/admin/users/${userId}/points` })
+}
+
 export function getUsers() {
-  return request<Array<{ id: string; username: string; name?: string; role: string }>>({ url: '/users' })
+  return request<Array<{ id: string; username: string; name?: string; avatar?: string; role: string }>>({ url: '/users' })
 }

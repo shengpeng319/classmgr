@@ -3,26 +3,22 @@ import { prisma } from '../utils/prisma'
 import { authMiddleware } from '../middleware/auth'
 
 export function lotteryRoutes(router: Router) {
-  // Get or create student for current user
-  router.get('/lottery/student', authMiddleware, async (ctx) => {
+  // Get user info with points
+  router.get('/lottery/info', authMiddleware, async (ctx) => {
     const userId = ctx.state.user.userId
 
-    let student = await prisma.student.findFirst({
-      where: { userId }
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, avatar: true, points: true }
     })
 
-    if (!student) {
-      // Create a new student for this user
-      student = await prisma.student.create({
-        data: {
-          name: '默认学生',
-          points: 100, // Starting points for new users
-          userId
-        }
-      })
+    if (!user) {
+      ctx.status = 404
+      ctx.body = { code: 404, message: '用户不存在', data: null }
+      return
     }
 
-    ctx.body = { code: 0, message: 'ok', data: student }
+    ctx.body = { code: 0, message: 'ok', data: user }
   })
 
   // Get active cards (available for drawing)
@@ -40,23 +36,18 @@ export function lotteryRoutes(router: Router) {
     ctx.body = { code: 0, message: 'ok', data: cards }
   })
 
-  // Draw a card
+  // Draw a card (free, no points deduction)
   router.post('/lottery/draw', authMiddleware, async (ctx) => {
     const userId = ctx.state.user.userId
 
-    // Get or create student
-    let student = await prisma.student.findFirst({
-      where: { userId }
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
     })
 
-    if (!student) {
-      student = await prisma.student.create({
-        data: {
-          name: '默认学生',
-          points: 100,
-          userId
-        }
-      })
+    if (!user) {
+      ctx.status = 404
+      ctx.body = { code: 404, message: '用户不存在', data: null }
+      return
     }
 
     const availableCards = await prisma.card.findMany({
@@ -71,15 +62,7 @@ export function lotteryRoutes(router: Router) {
 
     if (availableCards.length === 0) {
       ctx.status = 400
-      ctx.body = { code: 400, message: '暂无可抽取的卡片', data: null }
-      return
-    }
-
-    const affordableCards = availableCards.filter(card => card.pointsCost <= student.points)
-
-    if (affordableCards.length === 0) {
-      ctx.status = 400
-      ctx.body = { code: 400, message: '积分不足，无法抽取', data: null }
+      ctx.body = { code: 400, message: '暂无可抽取的卡牌', data: null }
       return
     }
 
@@ -93,14 +76,14 @@ export function lotteryRoutes(router: Router) {
     
     const weightedCards: { card: typeof availableCards[0], weight: number }[] = []
     let totalWeight = 0
-    for (const card of affordableCards) {
+    for (const card of availableCards) {
       const weight = rarityWeights[card.rarity] || 10
       weightedCards.push({ card, weight })
       totalWeight += weight
     }
     
     let random = Math.random() * totalWeight
-    let drawnCard = affordableCards[0]
+    let drawnCard = availableCards[0]
     for (const { card, weight } of weightedCards) {
       random -= weight
       if (random <= 0) {
@@ -109,12 +92,8 @@ export function lotteryRoutes(router: Router) {
       }
     }
 
-    // Perform transaction
+    // Perform transaction (free draw, no points deduction)
     await prisma.$transaction([
-      prisma.student.update({
-        where: { id: student.id },
-        data: { points: { decrement: drawnCard.pointsCost } }
-      }),
       prisma.card.update({
         where: { id: drawnCard.id },
         data: {
@@ -123,23 +102,18 @@ export function lotteryRoutes(router: Router) {
       }),
       prisma.studentCard.create({
         data: {
-          studentId: student.id,
+          userId: userId,
           cardId: drawnCard.id
         }
       })
     ])
-
-    // Get updated student and return drawn card
-    const updatedStudent = await prisma.student.findUnique({
-      where: { id: student.id }
-    })
 
     ctx.body = {
       code: 0,
       message: 'ok',
       data: {
         card: drawnCard,
-        remainingPoints: updatedStudent?.points ?? 0
+        remainingPoints: user.points
       }
     }
   })
@@ -148,43 +122,25 @@ export function lotteryRoutes(router: Router) {
   router.get('/lottery/my-cards', authMiddleware, async (ctx) => {
     const userId = ctx.state.user.userId
 
-    const student = await prisma.student.findFirst({
-      where: { userId }
-    })
-
-    if (!student) {
-      ctx.body = { code: 0, message: 'ok', data: [] }
-      return
-    }
-
-    const studentCards = await prisma.studentCard.findMany({
-      where: { studentId: student.id },
+    const userCards = await prisma.studentCard.findMany({
+      where: { userId },
       include: { card: true },
       orderBy: { drawnAt: 'desc' }
     })
 
-    ctx.body = { code: 0, message: 'ok', data: studentCards }
+    ctx.body = { code: 0, message: 'ok', data: userCards }
   })
 
   // Get lottery history
   router.get('/lottery/history', authMiddleware, async (ctx) => {
     const userId = ctx.state.user.userId
 
-    const student = await prisma.student.findFirst({
-      where: { userId }
-    })
-
-    if (!student) {
-      ctx.body = { code: 0, message: 'ok', data: [] }
-      return
-    }
-
-    const studentCards = await prisma.studentCard.findMany({
-      where: { studentId: student.id },
+    const userCards = await prisma.studentCard.findMany({
+      where: { userId },
       include: { card: true },
       orderBy: { drawnAt: 'desc' }
     })
 
-    ctx.body = { code: 0, message: 'ok', data: studentCards }
+    ctx.body = { code: 0, message: 'ok', data: userCards }
   })
 }

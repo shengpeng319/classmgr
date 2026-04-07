@@ -32,6 +32,10 @@ export interface StudentCard {
   card: Card
 }
 
+export function getLotteryInfo() {
+  return request<{ id: string; name?: string; avatar?: string; points: number }>({ url: '/lottery/info' })
+}
+
 export function getLotteryStudent() {
   return request<Student>({ url: '/lottery/student' })
 }

@@ -1,8 +1,33 @@
 import Router from 'koa-router'
 import { prisma } from '../utils/prisma'
 import { verifyToken, TokenPayload } from '../utils/jwt'
+import { generateDailyTasks } from '../cron/dailyTask'
 
 export function taskRoutes(router: Router) {
+  router.post('/admin/tasks/generate-daily', async (ctx) => {
+    const authHeader = ctx.headers.authorization
+    let isAdmin = false
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7)
+      const payload = verifyToken(token)
+      isAdmin = payload?.role === 'admin'
+    }
+    
+    if (!isAdmin) {
+      ctx.status = 403
+      ctx.body = { code: 403, message: 'Forbidden: Admin access required', data: null }
+      return
+    }
+    
+    try {
+      await generateDailyTasks()
+      ctx.body = { code: 0, message: 'Daily tasks generated successfully', data: null }
+    } catch (e: any) {
+      ctx.status = 500
+      ctx.body = { code: 500, message: e.message, data: null }
+    }
+  })
+
   router.get('/tasks', async (ctx) => {
     const { userId, startDate, endDate } = ctx.query
     
@@ -57,14 +82,69 @@ export function taskRoutes(router: Router) {
     const { id } = ctx.params
     const { isCompleted } = ctx.request.body as { isCompleted: boolean }
     
-    const task = await prisma.task.update({
+    const authHeader = ctx.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      ctx.status = 401
+      ctx.body = { code: 401, message: 'Unauthorized', data: null }
+      return
+    }
+    
+    const task = await prisma.task.findUnique({
       where: { id },
-      data: {
-        isCompleted,
-        completedAt: isCompleted ? new Date() : null
-      }
+      include: { user: true }
     })
-    ctx.body = { code: 0, message: 'ok', data: task }
+    
+    if (!task) {
+      ctx.status = 404
+      ctx.body = { code: 404, message: 'Task not found', data: null }
+      return
+    }
+    
+    const taskOwnerId = task.userId
+    const isCompleting = isCompleted && !task.isCompleted
+    const isUncompleting = !isCompleted && task.isCompleted
+    
+    await prisma.$transaction(async (tx) => {
+      const updatedTask = await tx.task.update({
+        where: { id },
+        data: {
+          isCompleted,
+          completedAt: isCompleted ? new Date() : null
+        }
+      })
+      
+      if (isCompleting) {
+        await tx.user.update({
+          where: { id: taskOwnerId },
+          data: { points: { increment: task.points } }
+        })
+        await tx.pointRecord.create({
+          data: {
+            userId: taskOwnerId,
+            taskId: task.id,
+            taskTitle: task.title,
+            points: task.points,
+            reason: '完成任务'
+          }
+        })
+      } else if (isUncompleting) {
+        await tx.user.update({
+          where: { id: taskOwnerId },
+          data: { points: { decrement: task.points } }
+        })
+        await tx.pointRecord.create({
+          data: {
+            userId: taskOwnerId,
+            taskId: task.id,
+            taskTitle: task.title,
+            points: -task.points,
+            reason: '取消完成'
+          }
+        })
+      }
+      
+      ctx.body = { code: 0, message: 'ok', data: updatedTask }
+    })
   })
 
   router.post('/tasks/init', async (ctx) => {
@@ -260,5 +340,97 @@ export function taskRoutes(router: Router) {
     
     await prisma.task.delete({ where: { id } })
     ctx.body = { code: 0, message: 'ok', data: null }
+  })
+
+  router.get('/point-records', async (ctx) => {
+    const authHeader = ctx.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      ctx.status = 401
+      ctx.body = { code: 401, message: 'Unauthorized', data: null }
+      return
+    }
+    
+    const token = authHeader.substring(7)
+    const tokenPayload = verifyToken(token)
+    
+    if (!tokenPayload) {
+      ctx.status = 401
+      ctx.body = { code: 401, message: 'Invalid token', data: null }
+      return
+    }
+    
+    const records = await prisma.pointRecord.findMany({
+      where: { userId: tokenPayload.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    })
+    
+    ctx.body = { code: 0, message: 'ok', data: records }
+  })
+
+  router.get('/admin/point-records', async (ctx) => {
+    const authHeader = ctx.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      ctx.status = 401
+      ctx.body = { code: 401, message: 'Unauthorized', data: null }
+      return
+    }
+    
+    const token = authHeader.substring(7)
+    const tokenPayload = verifyToken(token)
+    
+    if (!tokenPayload || tokenPayload.role !== 'admin') {
+      ctx.status = 403
+      ctx.body = { code: 403, message: 'Forbidden', data: null }
+      return
+    }
+    
+    const { userId } = ctx.query
+    
+    const where: any = {}
+    if (userId) {
+      where.userId = userId as string
+    }
+    
+    const records = await prisma.pointRecord.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    })
+    
+    ctx.body = { code: 0, message: 'ok', data: records }
+  })
+
+  router.get('/admin/users/:id/points', async (ctx) => {
+    const authHeader = ctx.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      ctx.status = 401
+      ctx.body = { code: 401, message: 'Unauthorized', data: null }
+      return
+    }
+    
+    const token = authHeader.substring(7)
+    const tokenPayload = verifyToken(token)
+    
+    if (!tokenPayload || tokenPayload.role !== 'admin') {
+      ctx.status = 403
+      ctx.body = { code: 403, message: 'Forbidden', data: null }
+      return
+    }
+    
+    const { id } = ctx.params
+    
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, name: true, avatar: true, points: true }
+    })
+    
+    if (!user) {
+      ctx.status = 404
+      ctx.body = { code: 404, message: 'User not found', data: null }
+      return
+    }
+    
+    ctx.body = { code: 0, message: 'ok', data: user }
   })
 }
