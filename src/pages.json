@@ -109,6 +109,12 @@
         "text": "积分",
         "iconPath": "static/tabs/points.png",
         "selectedIconPath": "static/tabs/points-active.png"
+      },
+      {
+        "pagePath": "pages/lottery/lottery",
+        "text": "抽卡",
+        "iconPath": "static/tabs/lottery.png",
+        "selectedIconPath": "static/tabs/lottery-active.png"
       }
     ]
   },

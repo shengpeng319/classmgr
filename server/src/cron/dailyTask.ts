@@ -16,8 +16,8 @@ export function startDailyTaskCron() {
 export async function generateDailyTasks() {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  const todayEnd = new Date(today)
+  todayEnd.setHours(23, 59, 59, 999)  // 当天最后一秒
   
   const dayOfWeek = today.getDay()
   
@@ -60,7 +60,7 @@ export async function generateDailyTasks() {
       where: {
         userId: schedule.userId,
         title: schedule.name,
-        startDate: { lte: tomorrow },
+        startDate: { lte: todayEnd },
         endDate: { gte: today }
       }
     })
@@ -76,7 +76,7 @@ export async function generateDailyTasks() {
       type: schedule.type,
       points: schedule.points || 1,
       startDate: today,
-      endDate: tomorrow,
+      endDate: todayEnd,  // 当日任务只当天有效，到今天结束就过期
       isCompleted: false
     })
 

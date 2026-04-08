@@ -99,8 +99,6 @@ model StudentCard {
   drawnAt   DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
   card      Card     @relation(fields: [cardId], references: [id])
-
-  @@unique([userId, cardId])
 }
 
 model Task {

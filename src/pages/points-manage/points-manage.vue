@@ -233,6 +233,10 @@ const submit = async () => {
         userId: userId.value,
         points: actualPoints.value,
         reason: recordReason
+      },
+      header: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${uni.getStorageSync('token')}`
       }
     })
     
