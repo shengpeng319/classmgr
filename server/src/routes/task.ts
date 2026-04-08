@@ -433,4 +433,57 @@ export function taskRoutes(router: Router) {
     
     ctx.body = { code: 0, message: 'ok', data: user }
   })
+
+  router.post('/admin/points/adjust', async (ctx) => {
+    const authHeader = ctx.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      ctx.status = 401
+      ctx.body = { code: 401, message: 'Unauthorized', data: null }
+      return
+    }
+    
+    const token = authHeader.substring(7)
+    const tokenPayload = verifyToken(token)
+    
+    if (!tokenPayload || tokenPayload.role !== 'admin') {
+      ctx.status = 403
+      ctx.body = { code: 403, message: 'Forbidden', data: null }
+      return
+    }
+    
+    const { userId, points, reason } = ctx.request.body as { userId: string; points: number; reason: string }
+    
+    if (!userId || points === undefined || !reason) {
+      ctx.status = 400
+      ctx.body = { code: 400, message: 'Missing required fields', data: null }
+      return
+    }
+    
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      ctx.status = 404
+      ctx.body = { code: 404, message: 'User not found', data: null }
+      return
+    }
+    
+    const newPoints = user.points + points
+    
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { points: newPoints }
+      }),
+      prisma.pointRecord.create({
+        data: {
+          userId,
+          taskTitle: '管理员调整',
+          points,
+          reason,
+          taskId: null
+        }
+      })
+    ])
+    
+    ctx.body = { code: 0, message: 'ok', data: { points: newPoints } }
+  })
 }

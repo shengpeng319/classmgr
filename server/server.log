@@ -1,2 +1,39 @@
 [Cron] Daily task cron scheduled at 00:15 daily
 Server running on http://localhost:3000
+[Cron] Starting daily task generation...
+[Cron] Generating tasks for 2026-04-07, dayOfWeek: 3
+[Cron] Found 14 daily schedules
+[Cron] Will create task: "游泳" for user a257c366-bbe5-4b61-b5ab-d348cce704c3
+[Cron] Schedule "足球训练" is not on today (day 3), skipping
+[Cron] Schedule "足球训练" is not on today (day 3), skipping
+[Cron] Schedule "游泳" is not on today (day 3), skipping
+[Cron] Will create task: "自习" for user 6ff3118d-4388-43b7-944e-17948088275f
+[Cron] Schedule "自习" is not on today (day 3), skipping
+[Cron] Schedule "语文" is not on today (day 3), skipping
+[Cron] Schedule "历史" is not on today (day 3), skipping
+[Cron] Schedule "道法" is not on today (day 3), skipping
+[Cron] Schedule "游泳" is not on today (day 3), skipping
+[Cron] Task for "围棋练习" already exists for today, skipping
+[Cron] Schedule "跑步/足球/跳绳" is not on today (day 3), skipping
+[Cron] Schedule "跑步1000米" is not on today (day 3), skipping
+[Cron] Will create task: "引体向上/体前屈" for user 6ff3118d-4388-43b7-944e-17948088275f
+[Cron] Created 3 tasks
+[Cron] Daily task generation completed
+[Cron] Generating tasks for 2026-04-07, dayOfWeek: 3
+[Cron] Found 14 daily schedules
+[Cron] Task for "游泳" already exists for today, skipping
+[Cron] Schedule "足球训练" is not on today (day 3), skipping
+[Cron] Schedule "足球训练" is not on today (day 3), skipping
+[Cron] Schedule "游泳" is not on today (day 3), skipping
+[Cron] Task for "自习" already exists for today, skipping
+[Cron] Schedule "自习" is not on today (day 3), skipping
+[Cron] Schedule "语文" is not on today (day 3), skipping
+[Cron] Schedule "历史" is not on today (day 3), skipping
+[Cron] Schedule "道法" is not on today (day 3), skipping
+[Cron] Schedule "游泳" is not on today (day 3), skipping
+[Cron] Task for "围棋练习" already exists for today, skipping
+[Cron] Schedule "跑步/足球/跳绳" is not on today (day 3), skipping
+[Cron] Schedule "跑步1000米" is not on today (day 3), skipping
+[Cron] Task for "引体向上/体前屈" already exists for today, skipping
+[Cron] No tasks to create
+[Cron] Daily task generation completed

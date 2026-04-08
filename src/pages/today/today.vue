@@ -1,11 +1,7 @@
 <template>
   <view class="container">
-    <CommonHeader title="今日任务" :show-add-btn="true" :show-import-btn="true" @add="showAddModal" @import="handleImport" />
+    <CommonHeader :title="pageTitle" :show-add-btn="true" :show-import-btn="true" @add="showAddModal" @import="handleImport" />
     <FilterBar :is-admin="isAdmin" />
-
-    <view class="date-bar">
-      <text class="date-text">{{ currentDate }}</text>
-    </view>
 
     <view class="task-list">
       <view class="task-section" v-if="incompleteTasks.length > 0">
@@ -187,6 +183,12 @@
         </view>
       </view>
     </view>
+    
+    <PointsEarnedAnimation 
+      :show="showPointsAnimation" 
+      :points="earnedPoints"
+      @close="onAnimationClose"
+    />
   </view>
 </template>
 
@@ -195,6 +197,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { getTasks, updateTask, initTasks, createTask, updateAdminTask, deleteTask, generateDailyTasks, getUsers, type Task } from '@/api/task'
 import CommonHeader from '@/components/CommonHeader.vue'
 import FilterBar from '@/components/FilterBar.vue'
+import PointsEarnedAnimation from '@/components/PointsEarnedAnimation.vue'
 import { useUserFilterStore } from '@/stores/userFilter'
 import { storeToRefs } from 'pinia'
 
@@ -213,6 +216,9 @@ const formUserIndex = ref(0)
 const defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
 const taskToggleOrder = ref<Map<string, number>>(new Map())
 let toggleCounter = 0
+
+const showPointsAnimation = ref(false)
+const earnedPoints = ref(0)
 
 const formData = ref({
   userId: '',
@@ -287,6 +293,10 @@ const onFormStartDateChange = (e: any) => {
 const onFormEndDateChange = (e: any) => {
   formData.value.endDate = e.detail.value
 }
+
+const pageTitle = computed(() => {
+  return `今日任务 (${currentDate.value})`
+})
 
 const incompleteTasks = computed(() => 
   tasks.value
@@ -404,6 +414,10 @@ const toggleTask = async (task: Task) => {
   try {
     const res: any = await updateTask(task.id, { isCompleted: newStatus })
     if (res.code === 0) {
+      if (newStatus) {
+        earnedPoints.value = task.points || 5
+        showPointsAnimation.value = true
+      }
       uni.$emit('taskUpdated', { userId: task.userId })
     } else {
       await loadTasks()
@@ -412,6 +426,10 @@ const toggleTask = async (task: Task) => {
     console.error('Failed to update task', e)
     await loadTasks()
   }
+}
+
+const onAnimationClose = () => {
+  showPointsAnimation.value = false
 }
 
 const handleImport = async () => {
@@ -553,23 +571,6 @@ onMounted(() => {
   min-height: 100vh;
   background: linear-gradient(180deg, #E8F5E9 0%, #F0F8FF 100%);
   padding: 20rpx;
-}
-
-.date-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 20rpx;
-  padding: 24rpx 32rpx;
-  min-height: 88rpx;
-}
-
-.date-text {
-  font-size: 24rpx;
-  color: #4A9B8E;
-  background: #E8F5E9;
-  border-radius: 30rpx;
-  padding: 12rpx 32rpx;
 }
 
 .task-list {

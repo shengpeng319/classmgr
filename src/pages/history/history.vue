@@ -3,12 +3,8 @@
     <CommonHeader title="历史任务" :show-add-btn="true" @add="showAddModal" />
     <FilterBar :is-admin="isAdmin" />
 
-    <view class="filter-toggle-bar" @click="showFilter = !showFilter">
-      <text class="filter-toggle-text">{{ showFilter ? '收起筛选' : '展开筛选' }}</text>
-    </view>
-
     <!-- 筛选区域 -->
-    <view class="filter-section" v-if="showFilter">
+    <view class="filter-section">
       <view class="filter-row">
         <view class="filter-item">
           <text class="filter-label">开始日期</text>
@@ -28,17 +24,6 @@
         </view>
       </view>
 
-      <view class="filter-row" v-if="isAdmin">
-        <view class="filter-item full">
-          <text class="filter-label">用户筛选</text>
-          <picker mode="selector" :value="userIndex" :range="userOptions" range-key="name" @change="onUserChange">
-            <view class="picker-value">
-              <text>{{ userOptions[userIndex]?.name || '全部用户' }}</text>
-            </view>
-          </picker>
-        </view>
-      </view>
-
       <view class="filter-actions">
         <view class="btn reset" @click="resetFilter">
           <text class="btn-text">重置</text>
@@ -51,8 +36,8 @@
 
     <!-- 任务列表 -->
     <view class="task-list">
-      <view class="task-item" v-for="task in displayedTasks" :key="task.id" @click="toggleTask(task)">
-        <view class="task-checkbox" @click="toggleTask(task)">
+      <view class="task-item" v-for="task in displayedTasks" :key="task.id" :class="{ clickable: isAdmin }" @click="isAdmin && toggleTask(task)">
+        <view class="task-checkbox" v-if="isAdmin" @click.stop="toggleTask(task)">
           <view class="checkbox" :class="{ checked: task.isCompleted }">
             <text class="checkbox-icon" v-if="task.isCompleted">✓</text>
           </view>
@@ -226,7 +211,6 @@ const defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
 
 const filterStartDate = ref('')
 const filterEndDate = ref('')
-const showFilter = ref(true)
 
 const userOptions = computed(() => {
   return [{ id: '', name: '全部用户' }, ...allUsers.value]
@@ -566,23 +550,6 @@ watch(selectedUserIds, () => {
   display: block;
 }
 
-.filter-toggle-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 20rpx;
-  padding: 24rpx 32rpx;
-  min-height: 88rpx;
-}
-
-.filter-toggle-text {
-  font-size: 24rpx;
-  color: #4A9B8E;
-  background: #E8F5E9;
-  border-radius: 30rpx;
-  padding: 12rpx 32rpx;
-}
-
 .filter-section {
   background: #FFFFFF;
   border-radius: 20rpx;
@@ -674,6 +641,10 @@ watch(selectedUserIds, () => {
   box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: flex-start;
+}
+
+.task-item.clickable:active {
+  background: #F8F9FA;
 }
 
 .task-checkbox {

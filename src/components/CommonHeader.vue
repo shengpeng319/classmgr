@@ -6,10 +6,24 @@
         <text class="add-btn-text">+ 添加</text>
       </view>
       <view class="week-btn" v-if="showWeekBtn && isAdmin" @click="$emit('week')">
-        <text class="week-btn-text">回到本周</text>
+        <text class="week-btn-text">回到当日</text>
       </view>
       <view class="import-btn" v-if="showImportBtn && isAdmin" @click="$emit('import')">
         <text class="import-btn-text">导入...</text>
+      </view>
+      <view class="manage-btn" v-if="showManageBtn && isAdmin" @click="toggleManageMenu">
+        <text class="manage-btn-text">管理...</text>
+      </view>
+      
+      <!-- 管理菜单弹窗 -->
+      <view class="manage-menu-popup" v-if="showManageMenu">
+        <view class="manage-menu-item" @click="onAddPoints">
+          <text class="manage-menu-text">加分</text>
+        </view>
+        <view class="manage-menu-divider"></view>
+        <view class="manage-menu-item" @click="onSubtractPoints">
+          <text class="manage-menu-text">减分</text>
+        </view>
       </view>
     </view>
     <view class="header-right">
@@ -57,15 +71,18 @@ defineProps<{
   showAddBtn?: boolean
   showWeekBtn?: boolean
   showImportBtn?: boolean
+  showManageBtn?: boolean
 }>()
-
-defineEmits<{
+const emit = defineEmits<{
   add: []
   week: []
   import: []
+  manageAddPoints: []
+  manageSubtractPoints: []
 }>()
 
 const showMenu = ref(false)
+const showManageMenu = ref(false)
 const avatarUrl = ref('')
 const username = ref('')
 const isAdmin = ref(false)
@@ -95,6 +112,24 @@ const toggleMenu = () => {
 
 const closeMenu = () => {
   showMenu.value = false
+}
+
+const toggleManageMenu = () => {
+  showManageMenu.value = !showManageMenu.value
+}
+
+const closeManageMenu = () => {
+  showManageMenu.value = false
+}
+
+const onAddPoints = () => {
+  closeManageMenu()
+  emit('manageAddPoints')
+}
+
+const onSubtractPoints = () => {
+  closeManageMenu()
+  emit('manageSubtractPoints')
 }
 
 const goToProfile = () => {
@@ -149,6 +184,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16rpx;
+  position: relative;
 }
 
 .header-right {
@@ -229,6 +265,18 @@ onMounted(() => {
 .import-btn-text {
   font-size: 24rpx;
   color: #1976D2;
+  font-weight: 500;
+}
+
+.manage-btn {
+  padding: 8rpx 20rpx;
+  background: linear-gradient(135deg, #4A9B8E, #3D8B80);
+  border-radius: 8rpx;
+}
+
+.manage-btn-text {
+  font-size: 24rpx;
+  color: #FFFFFF;
   font-weight: 500;
 }
 
@@ -320,5 +368,38 @@ onMounted(() => {
 
 .menu-item.logout .menu-item-text {
   color: #E05555;
+}
+
+.manage-menu-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8rpx;
+  background: #FFFFFF;
+  border-radius: 12rpx;
+  overflow: hidden;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.15);
+  z-index: 999;
+}
+
+.manage-menu-item {
+  padding: 24rpx 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.manage-menu-item:active {
+  background: #F8F9FA;
+}
+
+.manage-menu-text {
+  font-size: 26rpx;
+  color: #333;
+}
+
+.manage-menu-divider {
+  height: 1rpx;
+  background: #F0F0F0;
 }
 </style>

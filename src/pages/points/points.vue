@@ -1,6 +1,6 @@
 <template>
   <view class="container">
-    <CommonHeader title="积分" />
+    <CommonHeader title="积分" :show-manage-btn="true" @manage-add-points="goToAddPoints" @manage-subtract-points="goToSubtractPoints" />
     <UserSelector v-if="isAdmin" :users="regularUsers" v-model="selectedUserId" />
     
     <view class="content">
@@ -33,6 +33,10 @@
         <view class="empty-history" v-else>
           <text class="empty-text">暂无积分记录</text>
         </view>
+        
+        <view class="load-more" v-if="hasMore" @click="loadMore">
+          <text class="load-more-text">展开更多 ({{ remainingCount }} 条)</text>
+        </view>
       </view>
     </view>
   </view>
@@ -44,7 +48,8 @@ import { onShow } from '@dcloudio/uni-app'
 import CommonHeader from '@/components/CommonHeader.vue'
 import UserSelector from '@/components/UserSelector.vue'
 import { getLotteryInfo } from '@/api/lottery'
-import { getAdminPointRecords, getAdminUserPoints, getUsers, type PointRecord } from '@/api/task'
+import { getPointRecords, getAdminPointRecords, getAdminUserPoints, getUsers, type PointRecord } from '@/api/task'
+import { usePagination } from '@/composables/usePagination'
 
 const isAdmin = ref(false)
 const userId = ref('')
@@ -53,7 +58,8 @@ const regularUsers = computed(() => allUsers.value.filter(u => u.role !== 'admin
 
 const selectedUserId = ref('')
 const userInfo = ref<{ id: string; name?: string; avatar?: string; points: number } | null>(null)
-const records = ref<PointRecord[]>([])
+
+const { displayedItems: records, hasMore, remainingCount, loadMore, setItems } = usePagination<PointRecord>()
 
 const selectedUserName = computed(() => {
   const user = regularUsers.value.find(u => u.id === selectedUserId.value)
@@ -102,12 +108,12 @@ const loadRecords = async () => {
     if (isAdmin.value && selectedUserId.value) {
       const res: any = await getAdminPointRecords(selectedUserId.value)
       if (res.code === 0) {
-        records.value = res.data || []
+        setItems(res.data || [])
       }
     } else {
-      const res: any = await getAdminPointRecords()
+      const res: any = await getPointRecords()
       if (res.code === 0) {
-        records.value = res.data || []
+        setItems(res.data || [])
       }
     }
   } catch (e) {
@@ -158,6 +164,24 @@ onMounted(() => {
     }
   })
 })
+
+const goToAddPoints = () => {
+  const user = regularUsers.value.find(u => u.id === selectedUserId.value)
+  if (user) {
+    uni.navigateTo({ 
+      url: `/pages/points-manage/points-manage?mode=add&userId=${user.id}&userName=${encodeURIComponent(user.name || user.username)}` 
+    })
+  }
+}
+
+const goToSubtractPoints = () => {
+  const user = regularUsers.value.find(u => u.id === selectedUserId.value)
+  if (user) {
+    uni.navigateTo({ 
+      url: `/pages/points-manage/points-manage?mode=subtract&userId=${user.id}&userName=${encodeURIComponent(user.name || user.username)}` 
+    })
+  }
+}
 
 onUnmounted(() => {
   uni.$off('taskUpdated')
@@ -296,5 +320,21 @@ onUnmounted(() => {
 .empty-text {
   font-size: 26rpx;
   color: #AAA;
+}
+
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24rpx 0;
+  margin-top: 16rpx;
+}
+
+.load-more-text {
+  font-size: 26rpx;
+  color: #4A9B8E;
+  padding: 16rpx 32rpx;
+  background: #F0F7F6;
+  border-radius: 32rpx;
 }
 </style>

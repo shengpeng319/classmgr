@@ -111,3 +111,7 @@ export function getAdminUserPoints(userId: string) {
 export function getUsers() {
   return request<Array<{ id: string; username: string; name?: string; avatar?: string; role: string }>>({ url: '/users' })
 }
+
+export function adjustPoints(userId: string, points: number, reason: string) {
+  return request({ url: '/admin/points/adjust', method: 'POST', data: { userId, points, reason } })
+}

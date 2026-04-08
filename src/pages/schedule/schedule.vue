@@ -1,6 +1,6 @@
 <template>
   <view class="container">
-    <CommonHeader title="课程表" :show-add-btn="true" :show-week-btn="!isCurrentWeek" @add="showAddModal" @week="goToToday" />
+    <CommonHeader title="课程表" :show-add-btn="true" :show-week-btn="true" @add="showAddModal" @week="goToToday" />
     <FilterBar :is-admin="isAdmin" />
 
     <view class="week-selector">
@@ -16,7 +16,7 @@
     </view>
 
     <view class="schedule-list">
-      <view class="day-section" v-for="day in weekSchedule" :key="day.date">
+      <view class="day-section" v-for="day in weekSchedule" :key="day.date" :id="day.isToday ? 'today-section' : ''">
         <view class="day-header" :class="{ today: day.isToday }">
           <text class="day-name">{{ day.dayName }}</text>
           <text class="day-date">{{ day.dateStr }}</text>
@@ -223,7 +223,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import CommonHeader from '@/components/CommonHeader.vue'
 import FilterBar from '@/components/FilterBar.vue'
 import { getSchedules, getAdminSchedules, createSchedule, updateSchedule, deleteSchedule, getUsers, type Schedule } from '@/api/schedule'
@@ -430,6 +430,17 @@ const nextWeek = () => {
 
 const goToToday = () => {
   currentWeekStart.value = getMonday(new Date())
+  setTimeout(() => {
+    const query = uni.createSelectorQuery().in(getCurrentInstance()?.proxy)
+    query.select('#today-section').boundingClientRect((rect: any) => {
+      if (rect) {
+        uni.pageScrollTo({
+          scrollTop: rect.top - 100,
+          duration: 300
+        })
+      }
+    }).exec()
+  }, 100)
 }
 
 const onFormUserChange = (e: any) => {

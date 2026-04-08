@@ -66,6 +66,12 @@
         "navigationBarBackgroundColor": "#87CEEB",
         "navigationBarTextStyle": "white"
       }
+    },
+    {
+      "path": "pages/points-manage/points-manage",
+      "style": {
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {
