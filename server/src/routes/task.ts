@@ -231,6 +231,13 @@ export function taskRoutes(router: Router) {
       return
     }
     
+    const oldTask = await prisma.task.findUnique({ where: { id } })
+    if (!oldTask) {
+      ctx.status = 404
+      ctx.body = { code: 404, message: 'Task not found', data: null }
+      return
+    }
+    
     const updateData: any = {}
     if (title !== undefined) updateData.title = title
     if (type !== undefined) updateData.type = type
@@ -242,13 +249,38 @@ export function taskRoutes(router: Router) {
       updateData.completedAt = isCompleted ? new Date() : null
     }
     
-    const task = await prisma.task.update({
-      where: { id },
-      data: updateData,
-      include: { user: { select: { id: true, username: true, name: true, avatar: true } } }
-    })
-    
-    ctx.body = { code: 0, message: 'ok', data: task }
+    if (isCompleted !== undefined && isCompleted !== oldTask.isCompleted) {
+      const pointDelta = isCompleted ? oldTask.points : -oldTask.points
+      const transactionOps: any[] = [
+        prisma.task.update({
+          where: { id },
+          data: updateData,
+          include: { user: { select: { id: true, username: true, name: true, avatar: true } } }
+        }),
+        prisma.user.update({
+          where: { id: oldTask.userId },
+          data: { points: { increment: pointDelta } }
+        }),
+        prisma.pointRecord.create({
+          data: {
+            userId: oldTask.userId,
+            taskId: oldTask.id,
+            taskTitle: oldTask.title,
+            points: pointDelta,
+            reason: isCompleted ? '完成任务' : '撤销完成'
+          }
+        })
+      ]
+      const [task] = await prisma.$transaction(transactionOps)
+      ctx.body = { code: 0, message: 'ok', data: task }
+    } else {
+      const task = await prisma.task.update({
+        where: { id },
+        data: updateData,
+        include: { user: { select: { id: true, username: true, name: true, avatar: true } } }
+      })
+      ctx.body = { code: 0, message: 'ok', data: task }
+    }
   })
 
   router.delete('/admin/tasks/:id', async (ctx) => {
@@ -381,9 +413,9 @@ export function taskRoutes(router: Router) {
       return
     }
     
-    const { userId, points, reason } = ctx.request.body as { userId: string; points: number; reason: string }
+    const { userId, points, reason } = ctx.request.body as { userId: string; points: number; reason?: string }
     
-    if (!userId || points === undefined || !reason) {
+    if (!userId || points === undefined) {
       ctx.status = 400
       ctx.body = { code: 400, message: 'Missing required fields', data: null }
       return
@@ -408,7 +440,7 @@ export function taskRoutes(router: Router) {
           userId,
           taskTitle: '管理员调整',
           points,
-          reason,
+          reason: reason || '',
           taskId: null
         }
       })

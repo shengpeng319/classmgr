@@ -491,7 +491,7 @@ const toggleTask = async (task: Task) => {
   }
   
   try {
-    const res: any = await updateTask(task.id, { isCompleted: newStatus })
+    const res: any = await updateAdminTask(task.id, { isCompleted: newStatus })
     if (res.code !== 0) {
       await loadTasks()
     }
