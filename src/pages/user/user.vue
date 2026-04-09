@@ -107,7 +107,7 @@ const loadUsers = async () => {
   try {
     const token = uni.getStorageSync('token')
     const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/users',
+      url: 'http://192.168.101.50:3000/api/classmgr/users',
       method: 'GET',
       header: { Authorization: `Bearer ${token}` }
     }) as any
@@ -139,7 +139,7 @@ const deleteUser = async (user: User) => {
         try {
           const token = uni.getStorageSync('token')
           const result = await uni.request({
-            url: `http://192.168.101.50:3000/api/users/${user.id}`,
+            url: `http://192.168.101.50:3000/api/classmgr/users/${user.id}`,
             method: 'DELETE',
             header: { Authorization: `Bearer ${token}` }
           }) as any
@@ -173,8 +173,8 @@ const handleSubmit = async () => {
   try {
     const token = uni.getStorageSync('token')
     const url = showEditModal.value 
-      ? `http://192.168.101.50:3000/api/users/${formData.value.id}`
-      : 'http://192.168.101.50:3000/api/users'
+      ? `http://192.168.101.50:3000/api/classmgr/users/${formData.value.id}`
+      : 'http://192.168.101.50:3000/api/classmgr/users'
     const method = showEditModal.value ? 'PUT' : 'POST'
     
     const data: any = { role: formData.value.role }

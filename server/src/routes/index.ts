@@ -8,8 +8,9 @@ import { userRoutes } from './user'
 import { profileRoutes } from './profile'
 import { taskRoutes } from './task'
 import { scheduleRoutes } from './schedule'
+import { presetPointItemRoutes } from './presetPointItem'
 
-export const router = new Router({ prefix: '/api' })
+export const router = new Router({ prefix: '/api/classmgr' })
 
 // Register routes
 authRoutes(router)
@@ -21,3 +22,4 @@ cardRoutes(router)
 lotteryRoutes(router)
 taskRoutes(router)
 scheduleRoutes(router)
+presetPointItemRoutes(router)

@@ -21,16 +21,22 @@
         </view>
       </view>
 
-      <view class="section-title">选择加分项</view>
+      <view class="section-title">{{ mode === 'add' ? '选择加分项' : '选择减分项' }}</view>
       
-      <view class="items-grid">
+      <view class="items-grid" id="itemsGrid">
         <view 
-          v-for="(item, index) in presetItems" 
-          :key="index"
+          v-for="(item, index) in currentItems" 
+          :key="item.id || index"
           class="grid-item"
-          :class="{ selected: selectedItemIndex === index }"
-          @click="selectItem(index)"
-          @longpress="showItemMenu(item, index)"
+          :class="{ 
+            selected: selectedItemIndex === index, 
+            wobble: isWobbling && dragIndex !== index
+          }"
+          :style="dragIndex === index ? { transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)`, zIndex: 999, position: 'relative' } : {}"
+          @click="onItemClick(index)"
+          @touchstart="onDragStart($event, index)"
+          @touchmove="onDragMove($event)"
+          @touchend="onDragEnd"
         >
           <view class="item-circle" :style="{ backgroundColor: item.color || '#4A9B8E' }">
             <text class="item-letter">{{ item.label.charAt(0) }}</text>
@@ -104,6 +110,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { getPresetPointItems, createPresetPointItem, updatePresetPointItem, deletePresetPointItem } from '@/api/presetPointItem'
 
 const mode = ref<'add' | 'subtract'>('add')
 const userId = ref('')
@@ -113,17 +120,16 @@ const reason = ref('')
 const selectedItemIndex = ref(-1)
 
 interface PresetItem {
+  id?: string
   label: string
   color: string
   points: number
 }
 
-const presetItems = ref<PresetItem[]>([
-  { label: '表现优秀', color: '#4A9B8E', points: 5 },
-  { label: '主动帮忙', color: '#FF9800', points: 3 },
-  { label: '学习进步', color: '#2196F3', points: 2 },
-  { label: '按时完成作业', color: '#9C27B0', points: 2 },
-])
+const addItems = ref<PresetItem[]>([])
+const subtractItems = ref<PresetItem[]>([])
+
+const currentItems = computed(() => mode.value === 'add' ? addItems.value : subtractItems.value)
 
 const colorOptions = ['#4A9B8E', '#FF9800', '#2196F3', '#9C27B0', '#E91E63', '#00BCD4', '#8BC34A', '#FF5722']
 
@@ -131,13 +137,25 @@ const showItemModal = ref(false)
 const editingItemIndex = ref(-1)
 const itemForm = ref({ label: '', color: '#4A9B8E', points: 1 })
 
+const dragIndex = ref(-1)
+const dragOffset = ref({ x: 0, y: 0 })
+const dragStartPos = ref({ x: 0, y: 0 })
+const isDragging = ref(false)
+const isWobbling = ref(false)
+const isMoving = ref(false)
+const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const editTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const itemsPerRow = ref(3)
+const itemWidth = ref(140)
+const itemGap = ref(30)
+
 const pageTitle = computed(() => {
   return `${userName.value} ${mode.value === 'add' ? '加分' : '减分'}`
 })
 
 const actualPoints = computed(() => {
-  if (selectedItemIndex.value >= 0 && selectedItemIndex.value < presetItems.value.length) {
-    return mode.value === 'add' ? presetItems.value[selectedItemIndex.value].points : -presetItems.value[selectedItemIndex.value].points
+  if (selectedItemIndex.value >= 0 && selectedItemIndex.value < currentItems.value.length) {
+    return mode.value === 'add' ? currentItems.value[selectedItemIndex.value].points : -currentItems.value[selectedItemIndex.value].points
   }
   return mode.value === 'add' ? points.value : -points.value
 })
@@ -155,7 +173,13 @@ const selectItem = (index: number) => {
     selectedItemIndex.value = -1
   } else {
     selectedItemIndex.value = index
-    points.value = presetItems.value[index].points
+    points.value = currentItems.value[index].points
+  }
+}
+
+const onItemClick = (index: number) => {
+  if (dragIndex.value < 0 && !isDragging.value) {
+    selectItem(index)
   }
 }
 
@@ -176,40 +200,204 @@ const closeItemModal = () => {
   editingItemIndex.value = -1
 }
 
-const saveItem = () => {
+const saveItem = async () => {
   if (!itemForm.value.label.trim()) {
     uni.showToast({ title: '请输入名称', icon: 'none' })
     return
   }
   
-  if (editingItemIndex.value >= 0) {
-    presetItems.value[editingItemIndex.value] = { ...itemForm.value, points: Number(itemForm.value.points) || 1 }
-  } else {
-    presetItems.value.push({ ...itemForm.value, points: Number(itemForm.value.points) || 1 })
+  const itemData = { 
+    label: itemForm.value.label, 
+    color: itemForm.value.color, 
+    points: Number(itemForm.value.points) || 1,
+    type: mode.value
   }
   
-  saveItemsToStorage()
+  const targetList = mode.value === 'add' ? addItems : subtractItems
+  
+  try {
+    if (editingItemIndex.value >= 0) {
+      const item = targetList.value[editingItemIndex.value]
+      if (item.id) {
+        await updatePresetPointItem(item.id, itemData)
+      }
+      targetList.value[editingItemIndex.value] = { ...item, ...itemData }
+    } else {
+      const res = await createPresetPointItem(itemData)
+      targetList.value.push({ ...itemData, id: res.data.id })
+    }
+    uni.showToast({ title: '保存成功', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: '保存失败', icon: 'none' })
+  }
+  
   closeItemModal()
 }
 
-const deleteItem = () => {
+const deleteItem = async () => {
   if (editingItemIndex.value >= 0) {
-    presetItems.value.splice(editingItemIndex.value, 1)
-    saveItemsToStorage()
-    closeItemModal()
+    const targetList = mode.value === 'add' ? addItems : subtractItems
+    const item = targetList.value[editingItemIndex.value]
+    if (item.id) {
+      try {
+        await deletePresetPointItem(item.id)
+      } catch (e) {}
+    }
+    targetList.value.splice(editingItemIndex.value, 1)
+    uni.showToast({ title: '已删除', icon: 'success' })
+  }
+  closeItemModal()
+}
+
+const onDragStart = (e: TouchEvent, index: number) => {
+  if (editingItemIndex.value >= 0) return
+  
+  const item = currentItems.value[index]
+  if (!item) return
+  
+  dragIndex.value = index
+  dragStartPos.value = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  dragOffset.value = { x: 0, y: 0 }
+  isDragging.value = false
+  isMoving.value = false
+  isWobbling.value = false
+
+  longPressTimer.value = setTimeout(() => {
+    isDragging.value = true
+    isWobbling.value = true
+    isMoving.value = false
+    dragStartPos.value = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    dragOffset.value = { x: 0, y: 0 }
+    editTimer.value = setTimeout(() => {
+      if (isDragging.value && !isMoving.value && dragIndex.value === index) {
+        isWobbling.value = false
+        showItemMenu(item, index)
+        dragIndex.value = -1
+        isDragging.value = false
+      }
+    }, 1000)
+  }, 1000)
+}
+
+const onDragMove = (e: TouchEvent) => {
+  if (dragIndex.value < 0) return
+  
+  const currentX = e.touches[0].clientX
+  const currentY = e.touches[0].clientY
+  const deltaX = currentX - dragStartPos.value.x
+  const deltaY = currentY - dragStartPos.value.y
+  
+  if (!isDragging.value && (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20)) {
+    if (longPressTimer.value) {
+      clearTimeout(longPressTimer.value)
+      longPressTimer.value = null
+    }
+    if (editTimer.value) {
+      clearTimeout(editTimer.value)
+      editTimer.value = null
+    }
+    dragIndex.value = -1
+    return
+  }
+  
+  if (isDragging.value) {
+    e.preventDefault()
+    dragOffset.value = { x: deltaX, y: deltaY }
+    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+      if (!isMoving.value) {
+        isMoving.value = true
+      }
+      if (editTimer.value) {
+        clearTimeout(editTimer.value)
+        editTimer.value = null
+      }
+    }
   }
 }
 
-const saveItemsToStorage = () => {
-  uni.setStorageSync('presetPointItems', JSON.stringify(presetItems.value))
+const onDragEnd = async () => {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+  if (editTimer.value) {
+    clearTimeout(editTimer.value)
+    editTimer.value = null
+  }
+  
+  if (dragIndex.value < 0) return
+   
+  const targetList = mode.value === 'add' ? addItems : subtractItems
+   
+  if (isDragging.value) {
+    const perRow = itemsPerRow.value || 4
+    const iwPx = itemWidth.value || 70
+    const gapPx = itemGap.value || 15
+    const ihPx = iwPx + gapPx
+    
+    const colChange = Math.round(dragOffset.value.x / (iwPx + gapPx))
+    const rowChange = Math.round(dragOffset.value.y / ihPx)
+    
+    const oldCol = dragIndex.value % perRow
+    const oldRow = Math.floor(dragIndex.value / perRow)
+    
+    let newCol = oldCol + colChange
+    let newRow = oldRow + rowChange
+    
+    if (newCol < 0) {
+      newRow = newRow - 1
+      newCol = perRow - 1
+    } else if (newCol >= perRow) {
+      newRow = newRow + 1
+      newCol = 0
+    }
+    
+    newCol = Math.max(0, newCol)
+    newRow = Math.max(0, newRow)
+    const newIndex = Math.max(0, Math.min(targetList.value.length - 1, newRow * perRow + newCol))
+    
+    if (dragIndex.value !== newIndex) {
+      const [movedItem] = targetList.value.splice(dragIndex.value, 1)
+      targetList.value.splice(newIndex, 0, movedItem)
+      
+      try {
+        await updatePresetPointItem(movedItem.id!, { sortOrder: newIndex + 1 })
+      } catch (e) {
+        console.error('Failed to update sort order', e)
+      }
+    }
+  } else {
+    selectedItemIndex.value = dragIndex.value
+    points.value = targetList.value[dragIndex.value].points
+  }
+  
+  dragIndex.value = -1
+  dragOffset.value = { x: 0, y: 0 }
+  isDragging.value = false
+  isWobbling.value = false
+  isMoving.value = false
 }
 
-const loadItemsFromStorage = () => {
-  const stored = uni.getStorageSync('presetPointItems')
-  if (stored) {
-    try {
-      presetItems.value = JSON.parse(stored)
-    } catch (e) {}
+const loadItemsFromServer = async () => {
+  try {
+    const [addRes, subtractRes] = await Promise.all([
+      getPresetPointItems('add'),
+      getPresetPointItems('subtract')
+    ])
+    addItems.value = addRes.data.map((item: any) => ({
+      id: item.id,
+      label: item.label,
+      color: item.color || '#4A9B8E',
+      points: item.points
+    }))
+    subtractItems.value = subtractRes.data.map((item: any) => ({
+      id: item.id,
+      label: item.label,
+      color: item.color || '#FF5722',
+      points: item.points
+    }))
+  } catch (e) {
+    console.error('Failed to load preset items', e)
   }
 }
 
@@ -223,11 +411,11 @@ const submit = async () => {
     return
   }
 
-  const recordReason = reason.value.trim() || (selectedItemIndex.value >= 0 ? presetItems.value[selectedItemIndex.value].label : '')
+  const recordReason = reason.value.trim() || (selectedItemIndex.value >= 0 ? currentItems.value[selectedItemIndex.value].label : '')
 
   try {
     const res: any = await uni.request({
-      url: 'http://192.168.101.50:3000/api/admin/points/adjust',
+      url: 'http://192.168.101.50:3000/api/classmgr/admin/points/adjust',
       method: 'POST',
       data: {
         userId: userId.value,
@@ -265,7 +453,11 @@ onMounted(() => {
     userName.value = decodeURIComponent(currentPage.options.userName || '用户')
   }
 
-  loadItemsFromStorage()
+  loadItemsFromServer()
+  
+  itemsPerRow.value = 4
+  itemWidth.value = 70
+  itemGap.value = 15
 })
 </script>
 
@@ -388,6 +580,32 @@ onMounted(() => {
 .grid-item.selected .item-circle {
   box-shadow: 0 0 0 6rpx rgba(74, 155, 142, 0.3);
 }
+
+.grid-item.dragging {
+  opacity: 0.8;
+}
+
+.grid-item.dragging .item-circle {
+  box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.2);
+}
+
+@keyframes wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+.grid-item.wobble {
+  animation: wobble 0.3s ease-in-out infinite;
+}
+
+.grid-item.wobble:nth-child(2) { animation-delay: 0.05s; }
+.grid-item.wobble:nth-child(3) { animation-delay: 0.1s; }
+.grid-item.wobble:nth-child(4) { animation-delay: 0.15s; }
+.grid-item.wobble:nth-child(5) { animation-delay: 0.2s; }
+.grid-item.wobble:nth-child(6) { animation-delay: 0.25s; }
+.grid-item.wobble:nth-child(7) { animation-delay: 0.3s; }
+.grid-item.wobble:nth-child(8) { animation-delay: 0.35s; }
 
 .item-circle {
   width: 100rpx;

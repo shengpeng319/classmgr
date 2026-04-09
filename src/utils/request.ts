@@ -1,4 +1,4 @@
-const BASE_URL = 'http://192.168.101.50:3000/api'
+const BASE_URL = 'http://192.168.101.50:3000/api/classmgr'
 
 interface RequestOptions {
   url: string

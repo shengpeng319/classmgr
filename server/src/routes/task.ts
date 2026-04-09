@@ -59,15 +59,14 @@ export function taskRoutes(router: Router) {
     if (startDate && endDate) {
       const qStart = new Date(startDate as string + 'T00:00:00.000Z')
       const qEnd = new Date(endDate as string + 'T23:59:59.999Z')
-      where.OR = [
-        { startDate: { gte: qStart, lte: qEnd } },
-        { endDate: { gte: qStart, lte: qEnd } },
-        { AND: [{ startDate: { lte: qStart } }, { endDate: { gte: qEnd } }] }
+      where.AND = [
+        { endDate: { gte: qStart } },
+        { startDate: { lte: qEnd } }
       ]
     } else if (startDate) {
-      where.startDate = { gte: new Date(startDate as string + 'T00:00:00.000Z') }
+      where.endDate = { gte: new Date(startDate as string + 'T00:00:00.000Z') }
     } else if (endDate) {
-      where.endDate = { lte: new Date(endDate as string + 'T23:59:59.999Z') }
+      where.startDate = { lte: new Date(endDate as string + 'T23:59:59.999Z') }
     }
     
     const tasks = await prisma.task.findMany({
@@ -76,75 +75,6 @@ export function taskRoutes(router: Router) {
       include: { user: { select: { id: true, username: true, name: true, avatar: true } } }
     })
     ctx.body = { code: 0, message: 'ok', data: tasks }
-  })
-
-  router.put('/tasks/:id', async (ctx) => {
-    const { id } = ctx.params
-    const { isCompleted } = ctx.request.body as { isCompleted: boolean }
-    
-    const authHeader = ctx.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      ctx.status = 401
-      ctx.body = { code: 401, message: 'Unauthorized', data: null }
-      return
-    }
-    
-    const task = await prisma.task.findUnique({
-      where: { id },
-      include: { user: true }
-    })
-    
-    if (!task) {
-      ctx.status = 404
-      ctx.body = { code: 404, message: 'Task not found', data: null }
-      return
-    }
-    
-    const taskOwnerId = task.userId
-    const isCompleting = isCompleted && !task.isCompleted
-    const isUncompleting = !isCompleted && task.isCompleted
-    
-    await prisma.$transaction(async (tx) => {
-      const updatedTask = await tx.task.update({
-        where: { id },
-        data: {
-          isCompleted,
-          completedAt: isCompleted ? new Date() : null
-        }
-      })
-      
-      if (isCompleting) {
-        await tx.user.update({
-          where: { id: taskOwnerId },
-          data: { points: { increment: task.points } }
-        })
-        await tx.pointRecord.create({
-          data: {
-            userId: taskOwnerId,
-            taskId: task.id,
-            taskTitle: task.title,
-            points: task.points,
-            reason: '完成任务'
-          }
-        })
-      } else if (isUncompleting) {
-        await tx.user.update({
-          where: { id: taskOwnerId },
-          data: { points: { decrement: task.points } }
-        })
-        await tx.pointRecord.create({
-          data: {
-            userId: taskOwnerId,
-            taskId: task.id,
-            taskTitle: task.title,
-            points: -task.points,
-            reason: '取消完成'
-          }
-        })
-      }
-      
-      ctx.body = { code: 0, message: 'ok', data: updatedTask }
-    })
   })
 
   router.post('/tasks/init', async (ctx) => {

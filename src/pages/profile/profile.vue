@@ -106,7 +106,7 @@ const loadProfileFromServer = async () => {
   try {
     const token = uni.getStorageSync('token')
     const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/profile',
+      url: 'http://192.168.101.50:3000/api/classmgr/profile',
       method: 'GET',
       header: {
         Authorization: `Bearer ${token}`
@@ -284,7 +284,7 @@ const handleSave = async () => {
     if (avatarUrl.value && avatarUrl.value.startsWith('data:image')) {
       try {
         const uploadRes = await uni.request({
-          url: 'http://192.168.101.50:3000/api/profile/avatar',
+          url: 'http://192.168.101.50:3000/api/classmgr/profile/avatar',
           method: 'POST',
           data: { avatar: avatarUrl.value },
           header: {
@@ -302,7 +302,7 @@ const handleSave = async () => {
     }
 
     const res = await uni.request({
-      url: `http://192.168.101.50:3000/api/profile`,
+      url: `http://192.168.101.50:3000/api/classmgr/profile`,
       method: 'PUT',
       data: {
         name: formData.value.name,

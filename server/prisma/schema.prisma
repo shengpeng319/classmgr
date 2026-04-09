@@ -146,3 +146,16 @@ model PointRecord {
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id])
 }
+
+model PresetPointItem {
+  id        String   @id @default(uuid())
+  label     String   // 显示名称，如 "完成作业"
+  points    Int      // 积分数量
+  type      String   @default("add")  // "add" or "subtract"
+  icon      String?  // 图标名称
+  color     String?  // 颜色
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

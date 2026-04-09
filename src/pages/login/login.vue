@@ -108,7 +108,7 @@ const loadRememberedUsers = async () => {
   try {
     const deviceId = getDeviceId()
     const res = await uni.request({
-      url: `http://192.168.101.50:3000/api/auth/remembered-users/${deviceId}`
+      url: `http://192.168.101.50:3000/api/classmgr/auth/remembered-users/${deviceId}`
     }) as any
 
     if (res.data.code === 0) {
@@ -126,7 +126,7 @@ const quickLogin = async (user: any) => {
   try {
     const deviceId = getDeviceId()
     const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/auth/quick-login',
+      url: 'http://192.168.101.50:3000/api/classmgr/auth/quick-login',
       method: 'POST',
       data: {
         rememberToken: uni.getStorageSync(`rememberToken_${user.id}`) || '',
@@ -155,7 +155,7 @@ const removeRememberedUser = async (userId: string) => {
   try {
     const deviceId = getDeviceId()
     await uni.request({
-      url: `http://192.168.101.50:3000/api/auth/remembered-user/${userId}?deviceId=${deviceId}`,
+      url: `http://192.168.101.50:3000/api/classmgr/auth/remembered-user/${userId}?deviceId=${deviceId}`,
       method: 'DELETE'
     }) as any
     
@@ -178,7 +178,7 @@ const handleLogin = async () => {
   try {
     const deviceId = getDeviceId()
     const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/auth/login',
+      url: 'http://192.168.101.50:3000/api/classmgr/auth/login',
       method: 'POST',
       data: {
         ...formData.value,
