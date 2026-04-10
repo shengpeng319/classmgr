@@ -5,7 +5,7 @@
       <view class="add-btn" v-if="showAddBtn && isAdmin" @click="$emit('add')">
         <text class="add-btn-text">+ 添加</text>
       </view>
-      <view class="week-btn" v-if="showWeekBtn && isAdmin" @click="$emit('week')">
+      <view class="week-btn" v-if="showWeekBtn" @click="$emit('week')">
         <text class="week-btn-text">回到当日</text>
       </view>
       <view class="import-btn" v-if="showImportBtn && isAdmin" @click="$emit('import')">

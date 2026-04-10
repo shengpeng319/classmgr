@@ -219,16 +219,12 @@ export function taskRoutes(router: Router) {
     
     const authHeader = ctx.headers.authorization
     let isAdmin = false
+    let currentUserId: string | null = null
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)
       const payload = verifyToken(token)
       isAdmin = payload?.role === 'admin'
-    }
-    
-    if (!isAdmin) {
-      ctx.status = 403
-      ctx.body = { code: 403, message: 'Forbidden: Admin access required', data: null }
-      return
+      currentUserId = payload?.userId || null
     }
     
     const oldTask = await prisma.task.findUnique({ where: { id } })
@@ -236,6 +232,19 @@ export function taskRoutes(router: Router) {
       ctx.status = 404
       ctx.body = { code: 404, message: 'Task not found', data: null }
       return
+    }
+    
+    if (!isAdmin) {
+      if (!currentUserId || oldTask.userId !== currentUserId) {
+        ctx.status = 403
+        ctx.body = { code: 403, message: 'Forbidden', data: null }
+        return
+      }
+      if (title || type || points !== undefined || startDate || endDate) {
+        ctx.status = 403
+        ctx.body = { code: 403, message: 'Forbidden: Only admin can edit task details', data: null }
+        return
+      }
     }
     
     const updateData: any = {}
