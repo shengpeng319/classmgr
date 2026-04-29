@@ -4,7 +4,7 @@ import { prisma } from '../utils/prisma'
 import { authMiddleware, adminMiddleware } from '../middleware/auth'
 
 export function userRoutes(router: Router) {
-  router.get('/users', authMiddleware, adminMiddleware, async (ctx) => {
+  router.get('/users', authMiddleware, async (ctx) => {
     const users = await prisma.user.findMany({
       select: {
         id: true,

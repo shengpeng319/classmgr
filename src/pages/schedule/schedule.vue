@@ -350,7 +350,18 @@ const weekSchedule = computed(() => {
     const dayCourses = schedules.value
       .filter(s => {
         const days = s.dayOfWeek.split(',').map(d => Number(d.trim()))
-        return days.includes(dayOfWeek)
+        if (!days.includes(dayOfWeek)) return false
+        if (s.startDate) {
+          const startDate = new Date(s.startDate)
+          startDate.setHours(0, 0, 0, 0)
+          if (date < startDate) return false
+        }
+        if (s.endDate) {
+          const endDate = new Date(s.endDate)
+          endDate.setHours(0, 0, 0, 0)
+          if (date > endDate) return false
+        }
+        return true
       })
       .sort((a, b) => a.startTime.localeCompare(b.startTime))
 
