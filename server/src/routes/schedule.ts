@@ -6,6 +6,7 @@ export function scheduleRoutes(router: Router) {
   // 获取当前用户的课程表
   router.get('/schedules', async (ctx) => {
     const authHeader = ctx.headers.authorization
+    const { startDate, endDate } = ctx.query
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       ctx.status = 401
@@ -22,7 +23,8 @@ export function scheduleRoutes(router: Router) {
       return
     }
     
-    const now = new Date()
+    const weekStart = startDate ? new Date(startDate as string) : new Date()
+    const weekEnd = endDate ? new Date(endDate as string) : new Date()
     
     const schedules = await prisma.schedule.findMany({
       where: {
@@ -32,13 +34,13 @@ export function scheduleRoutes(router: Router) {
           {
             OR: [
               { startDate: null },
-              { startDate: { lte: now } }
+              { startDate: { lte: weekEnd } }
             ]
           },
           {
             OR: [
               { endDate: null },
-              { endDate: { gte: now } }
+              { endDate: { gte: weekStart } }
             ]
           }
         ]
@@ -57,13 +59,13 @@ export function scheduleRoutes(router: Router) {
         { startTime: 'asc' }
       ]
     })
-    
+
     ctx.body = { code: 0, message: 'ok', data: schedules }
   })
 
   // 获取指定用户的课程表（Admin）
   router.get('/admin/schedules', async (ctx) => {
-    const { userId } = ctx.query
+    const { userId, startDate, endDate } = ctx.query
     
     const authHeader = ctx.headers.authorization
     let isAdmin = false
@@ -79,20 +81,21 @@ export function scheduleRoutes(router: Router) {
       return
     }
     
-    const now = new Date()
+    const weekStart = startDate ? new Date(startDate as string) : new Date()
+    const weekEnd = endDate ? new Date(endDate as string) : new Date()
     const where: any = {
       isActive: true,
       AND: [
         {
           OR: [
             { startDate: null },
-            { startDate: { lte: now } }
+            { startDate: { lte: weekEnd } }
           ]
         },
         {
           OR: [
             { endDate: null },
-            { endDate: { gte: now } }
+            { endDate: { gte: weekStart } }
           ]
         }
       ]

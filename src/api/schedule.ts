@@ -24,13 +24,22 @@ export interface Schedule {
   }
 }
 
-export function getSchedules() {
-  return request<Schedule[]>({ url: '/schedules' })
+export function getSchedules(startDate?: string, endDate?: string) {
+  let url = '/schedules'
+  const params: string[] = []
+  if (startDate) params.push(`startDate=${startDate}`)
+  if (endDate) params.push(`endDate=${endDate}`)
+  if (params.length > 0) url += '?' + params.join('&')
+  return request<Schedule[]>({ url })
 }
 
-export function getAdminSchedules(userId?: string) {
+export function getAdminSchedules(userId?: string, startDate?: string, endDate?: string) {
   let url = '/admin/schedules'
-  if (userId) url += `?userId=${userId}`
+  const params: string[] = []
+  if (userId) params.push(`userId=${userId}`)
+  if (startDate) params.push(`startDate=${startDate}`)
+  if (endDate) params.push(`endDate=${endDate}`)
+  if (params.length > 0) url += '?' + params.join('&')
   return request<Schedule[]>({ url })
 }
 

@@ -390,15 +390,21 @@ const loadUsers = async () => {
 const loadSchedules = async () => {
   loading.value = true
   try {
+    const weekStart = currentWeekStart.value
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 6)
+    const startStr = weekStart.toISOString().split('T')[0]
+    const endStr = weekEnd.toISOString().split('T')[0]
+    
     let allSchedules: Schedule[] = []
     
     if (isAdmin.value) {
-      const res: any = await getAdminSchedules()
+      const res: any = await getAdminSchedules(undefined, startStr, endStr)
       if (res.code === 0) {
         allSchedules = res.data || []
       }
     } else {
-      const res: any = await getSchedules()
+      const res: any = await getSchedules(startStr, endStr)
       if (res.code === 0) {
         allSchedules = res.data || []
       }
