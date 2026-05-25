@@ -76,8 +76,8 @@ app.use(async (ctx, next) => {
   await next()
 })
 
-const PORT = process.env.PORT || 3000
-const HOST = process.env.HOST || '0.0.0.0'
+const PORT = process.env.CLSMGR_BACKEND_PORT || 3000
+const HOST = process.env.CLSMGR_HOST || '0.0.0.0'
 
 app.listen(PORT, HOST, () => {
   console.log(`Server running on http://${HOST === '0.0.0.0' ? '0.0.0.0' : HOST}:${PORT}`)

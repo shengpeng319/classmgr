@@ -172,9 +172,11 @@ const adjustPoints = (delta: number) => {
 const selectItem = (index: number) => {
   if (selectedItemIndex.value === index) {
     selectedItemIndex.value = -1
+    reason.value = ''
   } else {
     selectedItemIndex.value = index
     points.value = currentItems.value[index].points
+    reason.value = currentItems.value[index].label
   }
 }
 
