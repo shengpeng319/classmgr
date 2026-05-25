@@ -90,6 +90,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { request } from '@/utils/request'
 import { getDeviceId } from '@/utils/device'
 
 const formData = ref({
@@ -107,12 +108,9 @@ const currentUserId = ref('')
 const loadRememberedUsers = async () => {
   try {
     const deviceId = getDeviceId()
-    const res = await uni.request({
-      url: `http://192.168.101.50:3000/api/classmgr/auth/remembered-users/${deviceId}`
-    }) as any
-
-    if (res.data.code === 0) {
-      rememberedUsers.value = res.data.data || []
+    const res: any = await request({ url: `/auth/remembered-users/${deviceId}` })
+    if (res.code === 0) {
+      rememberedUsers.value = res.data || []
     }
   } catch (e) {
     console.error('Failed to load remembered users', e)
@@ -125,24 +123,24 @@ const quickLogin = async (user: any) => {
 
   try {
     const deviceId = getDeviceId()
-    const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/classmgr/auth/quick-login',
+    const res: any = await request({
+      url: '/auth/quick-login',
       method: 'POST',
       data: {
         rememberToken: uni.getStorageSync(`rememberToken_${user.id}`) || '',
         deviceId
       }
-    }) as any
+    })
 
-    if (res.data.code === 0) {
-      uni.setStorageSync('token', res.data.data.token)
-      uni.setStorageSync('user', JSON.stringify(res.data.data.user))
+    if (res.code === 0) {
+      uni.setStorageSync('token', res.data.token)
+      uni.setStorageSync('user', JSON.stringify(res.data.user))
       uni.showToast({ title: '登录成功', icon: 'success' })
       setTimeout(() => {
         uni.reLaunch({ url: '/pages/today/today' })
       }, 1000)
     } else {
-      errorMsg.value = res.data.message || '快速登录失败，请使用密码登录'
+      errorMsg.value = res.message || '快速登录失败，请使用密码登录'
     }
   } catch (e: any) {
     errorMsg.value = e.message || '网络错误'
@@ -154,10 +152,7 @@ const quickLogin = async (user: any) => {
 const removeRememberedUser = async (userId: string) => {
   try {
     const deviceId = getDeviceId()
-    await uni.request({
-      url: `http://192.168.101.50:3000/api/classmgr/auth/remembered-user/${userId}?deviceId=${deviceId}`,
-      method: 'DELETE'
-    }) as any
+    await request({ url: `/auth/remembered-user/${userId}?deviceId=${deviceId}`, method: 'DELETE' })
     
     rememberedUsers.value = rememberedUsers.value.filter(u => u.id !== userId)
     uni.removeStorageSync(`rememberToken_${userId}`)
@@ -177,22 +172,22 @@ const handleLogin = async () => {
 
   try {
     const deviceId = getDeviceId()
-    const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/classmgr/auth/login',
+    const res: any = await request({
+      url: '/auth/login',
       method: 'POST',
       data: {
         ...formData.value,
         deviceId,
         remember: rememberMe.value
       }
-    }) as any
+    })
 
-    if (res.data.code === 0) {
-      uni.setStorageSync('token', res.data.data.token)
-      uni.setStorageSync('user', JSON.stringify(res.data.data.user))
+    if (res.code === 0) {
+      uni.setStorageSync('token', res.data.token)
+      uni.setStorageSync('user', JSON.stringify(res.data.user))
       
-      if (rememberMe.value && res.data.data.rememberToken) {
-        uni.setStorageSync(`rememberToken_${res.data.data.user.id}`, res.data.data.rememberToken)
+      if (rememberMe.value && res.data.rememberToken) {
+        uni.setStorageSync(`rememberToken_${res.data.user.id}`, res.data.rememberToken)
       }
       
       uni.showToast({ title: '登录成功', icon: 'success' })
@@ -200,7 +195,7 @@ const handleLogin = async () => {
         uni.reLaunch({ url: '/pages/today/today' })
       }, 1000)
     } else {
-      errorMsg.value = res.data.message || '登录失败'
+      errorMsg.value = res.message || '登录失败'
     }
   } catch (e: any) {
     errorMsg.value = e.message || '网络错误'

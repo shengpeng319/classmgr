@@ -9,6 +9,16 @@ const app = new Koa()
 
 startDailyTaskCron()
 
+app.use(async (ctx, next) => {
+  const start = Date.now()
+  await next()
+  const ms = Date.now() - start
+  console.log(`${new Date().toISOString()} ${ctx.method} ${ctx.url} → ${ctx.status} (${ms}ms)`)
+  if (ctx.status >= 400) {
+    console.log(`  Error body: ${JSON.stringify(ctx.body)}`)
+  }
+})
+
 app.use(errorHandler)
 
 app.use(async (ctx, next) => {
@@ -67,9 +77,10 @@ app.use(async (ctx, next) => {
 })
 
 const PORT = process.env.PORT || 3000
+const HOST = process.env.HOST || '0.0.0.0'
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST === '0.0.0.0' ? '0.0.0.0' : HOST}:${PORT}`)
 })
 
 export default app

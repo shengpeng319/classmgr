@@ -1,4 +1,4 @@
-const BASE_URL = 'http://192.168.101.50:3000/api/classmgr'
+const BASE_URL = '/api/classmgr'
 
 interface RequestOptions {
   url: string
@@ -24,19 +24,26 @@ export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T
   }
 
   return new Promise((resolve, reject) => {
+    const fullUrl = `${BASE_URL}${url}`
+    console.log(`[API] ${method} ${fullUrl}`, data || '')
+
     uni.request({
-      url: `${BASE_URL}${url}`,
+      url: fullUrl,
       method,
       data,
       header,
       success: (res) => {
+        console.log(`[API] ${method} ${fullUrl} → ${res.statusCode}`, { code: (res.data as any)?.code, message: (res.data as any)?.message })
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data as ApiResponse<T>)
         } else {
-          reject(new Error((res.data as ApiResponse).message || 'Request failed'))
+          const err = new Error((res.data as ApiResponse).message || 'Request failed')
+          console.error(`[API] ${method} ${fullUrl} ✗`, err.message)
+          reject(err)
         }
       },
       fail: (err) => {
+        console.error(`[API] ${method} ${fullUrl} ✗ NETWORK ERROR`, JSON.stringify(err))
         reject(err)
       }
     })

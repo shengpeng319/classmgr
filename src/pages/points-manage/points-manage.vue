@@ -110,6 +110,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { request } from '@/utils/request'
 import { getPresetPointItems, createPresetPointItem, updatePresetPointItem, deletePresetPointItem } from '@/api/presetPointItem'
 
 const mode = ref<'add' | 'subtract'>('add')
@@ -414,21 +415,17 @@ const submit = async () => {
   const recordReason = reason.value.trim() || (selectedItemIndex.value >= 0 ? currentItems.value[selectedItemIndex.value].label : '')
 
   try {
-    const res: any = await uni.request({
-      url: 'http://192.168.101.50:3000/api/classmgr/admin/points/adjust',
+    const res: any = await request({
+      url: '/admin/points/adjust',
       method: 'POST',
       data: {
         userId: userId.value,
         points: actualPoints.value,
         reason: recordReason
-      },
-      header: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${uni.getStorageSync('token')}`
       }
     })
     
-    if (res.data.code === 0) {
+    if (res.code === 0) {
       uni.showToast({ 
         title: mode.value === 'add' ? '加分成功' : '减分成功', 
         icon: 'success' 

@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { request } from '@/utils/request'
 
 const formData = ref({
   name: '',
@@ -89,10 +90,8 @@ const loadProfile = () => {
     if (user.avatar) {
       if (user.avatar.startsWith('data:image') || user.avatar.startsWith('http')) {
         avatarUrl.value = user.avatar
-      } else if (user.avatar.startsWith('/')) {
-        avatarUrl.value = 'http://192.168.101.50:3000' + user.avatar
       } else {
-        avatarUrl.value = defaultAvatars[0]
+        avatarUrl.value = user.avatar
       }
     } else {
       avatarUrl.value = defaultAvatars[0]
@@ -104,17 +103,10 @@ const loadProfile = () => {
 
 const loadProfileFromServer = async () => {
   try {
-    const token = uni.getStorageSync('token')
-    const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/classmgr/profile',
-      method: 'GET',
-      header: {
-        Authorization: `Bearer ${token}`
-      }
-    }) as any
+    const res: any = await request({ url: '/profile' })
 
-    if (res.data.code === 0) {
-      const serverUser = res.data.data
+    if (res.code === 0) {
+      const serverUser = res.data
       formData.value = {
         name: serverUser.name || '',
         gender: serverUser.gender || 'male',
@@ -123,12 +115,10 @@ const loadProfileFromServer = async () => {
       }
       
       if (serverUser.avatar) {
-        if (serverUser.avatar.startsWith('data:image')) {
-          avatarUrl.value = serverUser.avatar
-        } else if (serverUser.avatar.startsWith('http')) {
+        if (serverUser.avatar.startsWith('data:image') || serverUser.avatar.startsWith('http')) {
           avatarUrl.value = serverUser.avatar
         } else {
-          avatarUrl.value = 'http://192.168.101.50:3000' + serverUser.avatar
+          avatarUrl.value = serverUser.avatar
         }
       }
       
@@ -275,34 +265,26 @@ const handleSave = async () => {
   saving.value = true
 
   try {
-    const token = uni.getStorageSync('token')
-    const userStr = uni.getStorageSync('user')
-    const user = JSON.parse(userStr)
-
     // Upload avatar first if it's base64
     let finalAvatar = avatarUrl.value
     if (avatarUrl.value && avatarUrl.value.startsWith('data:image')) {
       try {
-        const uploadRes = await uni.request({
-          url: 'http://192.168.101.50:3000/api/classmgr/profile/avatar',
+        const uploadRes: any = await request({
+          url: '/profile/avatar',
           method: 'POST',
-          data: { avatar: avatarUrl.value },
-          header: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }) as any
+          data: { avatar: avatarUrl.value }
+        })
         
-        if (uploadRes.data.code === 0) {
-          finalAvatar = 'http://192.168.101.50:3000' + uploadRes.data.data.avatar
+        if (uploadRes.code === 0) {
+          finalAvatar = uploadRes.data.avatar
         }
       } catch (e) {
         console.error('Avatar upload failed, using base64 direct', e)
       }
     }
 
-    const res = await uni.request({
-      url: `http://192.168.101.50:3000/api/classmgr/profile`,
+    const res: any = await request({
+      url: '/profile',
       method: 'PUT',
       data: {
         name: formData.value.name,
@@ -310,20 +292,18 @@ const handleSave = async () => {
         age: parseInt(formData.value.age) || 0,
         phone: formData.value.phone,
         avatar: finalAvatar
-      },
-      header: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
       }
-    }) as any
+    })
 
-    if (res.data.code === 0) {
+    if (res.code === 0) {
+      const userStr = uni.getStorageSync('user')
+      const user = userStr ? JSON.parse(userStr) : {}
       const updatedUser = { ...user, ...formData.value, avatar: finalAvatar }
       uni.setStorageSync('user', JSON.stringify(updatedUser))
       avatarUrl.value = finalAvatar
       uni.showToast({ title: '保存成功', icon: 'success' })
     } else {
-      uni.showToast({ title: res.data.message || '保存失败', icon: 'none' })
+      uni.showToast({ title: res.message || '保存失败', icon: 'none' })
     }
   } catch (e: any) {
     console.error('Save profile error:', e)

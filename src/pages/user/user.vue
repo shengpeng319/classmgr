@@ -84,6 +84,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { request } from '@/utils/request'
 
 interface User {
   id: string
@@ -105,15 +106,10 @@ const formData = ref({
 
 const loadUsers = async () => {
   try {
-    const token = uni.getStorageSync('token')
-    const res = await uni.request({
-      url: 'http://192.168.101.50:3000/api/classmgr/users',
-      method: 'GET',
-      header: { Authorization: `Bearer ${token}` }
-    }) as any
+    const res: any = await request({ url: '/users' })
 
-    if (res.data.code === 0) {
-      users.value = res.data.data
+    if (res.code === 0) {
+      users.value = res.data
     }
   } catch (e) {
     console.error('Failed to load users', e)
@@ -137,18 +133,13 @@ const deleteUser = async (user: User) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          const token = uni.getStorageSync('token')
-          const result = await uni.request({
-            url: `http://192.168.101.50:3000/api/classmgr/users/${user.id}`,
-            method: 'DELETE',
-            header: { Authorization: `Bearer ${token}` }
-          }) as any
+          const result: any = await request({ url: `/users/${user.id}`, method: 'DELETE' })
 
-          if (result.data.code === 0) {
+          if (result.code === 0) {
             uni.showToast({ title: '删除成功', icon: 'success' })
             loadUsers()
           } else {
-            uni.showToast({ title: result.data.message, icon: 'none' })
+            uni.showToast({ title: result.message, icon: 'none' })
           }
         } catch (e) {
           uni.showToast({ title: '删除失败', icon: 'none' })
@@ -171,10 +162,9 @@ const handleSubmit = async () => {
   }
 
   try {
-    const token = uni.getStorageSync('token')
     const url = showEditModal.value 
-      ? `http://192.168.101.50:3000/api/classmgr/users/${formData.value.id}`
-      : 'http://192.168.101.50:3000/api/classmgr/users'
+      ? `/users/${formData.value.id}`
+      : '/users'
     const method = showEditModal.value ? 'PUT' : 'POST'
     
     const data: any = { role: formData.value.role }
@@ -186,22 +176,14 @@ const handleSubmit = async () => {
       data.password = formData.value.password
     }
 
-    const res = await uni.request({
-      url,
-      method,
-      data,
-      header: { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    }) as any
+    const res: any = await request({ url, method, data })
 
-    if (res.data.code === 0) {
+    if (res.code === 0) {
       uni.showToast({ title: showEditModal.value ? '修改成功' : '添加成功', icon: 'success' })
       closeModal()
       loadUsers()
     } else {
-      uni.showToast({ title: res.data.message, icon: 'none' })
+      uni.showToast({ title: res.message, icon: 'none' })
     }
   } catch (e) {
     uni.showToast({ title: '操作失败', icon: 'none' })
