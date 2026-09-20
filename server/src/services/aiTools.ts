@@ -65,17 +65,49 @@ function normalizeScheduleList(args: any): any[] {
 
 // ---- 工具实现 ----
 
+/**
+ * 解析查询目标用户：admin 可用 childName 指定孩子（模糊匹配用户名/姓名），缺省查自己；
+ * 普通用户一律查自己（不信任模型传参）。
+ * ponytail: childName 需唯一匹配，歧义时报错列出候选；孩子多了再考虑精确 id 传参。
+ */
+async function resolveTargetUser(ctx: AIContext, args: any): Promise<{ userId: string; userName: string }> {
+  if (ctx.role !== 'admin' || !args?.childName) {
+    const self = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, username: true } })
+    return { userId: ctx.userId, userName: self?.name || self?.username || ctx.username }
+  }
+  const kw = String(args.childName).trim()
+  const candidates = await prisma.user.findMany({
+    where: {
+      role: { not: 'admin' },
+      OR: [{ name: { contains: kw } }, { username: { contains: kw } }]
+    },
+    select: { id: true, name: true, username: true }
+  })
+  if (candidates.length === 0) throw new Error(`找不到孩子「${kw}」，可先用 list_children 查看孩子列表`)
+  if (candidates.length > 1) {
+    throw new Error(`「${kw}」匹配到多个孩子：${candidates.map((c) => c.name || c.username).join('、')}，请说得更具体些`)
+  }
+  const c = candidates[0]
+  return { userId: c.id, userName: c.name || c.username }
+}
+
 const listSchedules: AITool = {
   name: 'list_schedules',
-  description: '查询当前用户的所有长期课程表安排（含课程名、星期、时间、地点、类型、积分）',
-  parameters: { type: 'object', properties: {}, additionalProperties: false },
+  description: '查询用户的所有长期课程表安排（含课程名、星期、时间、地点、类型、积分）。管理员可用 childName 指定孩子（如「Sophia」），缺省查自己',
+  parameters: {
+    type: 'object',
+    properties: {
+      childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
+    }
+  },
   needsConfirm: false,
-  summarize: () => '查询课程表',
-  execute: async (ctx) => {
+  summarize: (args) => `查询课程表${args?.childName ? `（${args.childName}）` : ''}`,
+  execute: async (ctx, args) => {
+    const target = await resolveTargetUser(ctx, args)
     const now = new Date()
     const schedules = await prisma.schedule.findMany({
       where: {
-        userId: ctx.userId,
+        userId: target.userId,
         isActive: true,
         AND: [
           { OR: [{ startDate: null }, { startDate: { lte: now } }] },
@@ -85,6 +117,7 @@ const listSchedules: AITool = {
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
     })
     return {
+      owner: target.userName,
       count: schedules.length,
       schedules: schedules.map((s) => ({
         id: s.id,
@@ -283,25 +316,28 @@ const deleteSchedule: AITool = {
 
 const listTasks: AITool = {
   name: 'list_tasks',
-  description: '查询当前用户某天的任务列表（默认今天），返回标题、类型、积分、完成状态',
+  description: '查询用户某天的任务列表（默认今天），返回标题、类型、积分、完成状态。管理员可用 childName 指定孩子，缺省查自己',
   parameters: {
     type: 'object',
     properties: {
-      date: { type: 'string', description: 'YYYY-MM-DD，缺省为今天' }
+      date: { type: 'string', description: 'YYYY-MM-DD，缺省为今天' },
+      childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
     }
   },
   needsConfirm: false,
-  summarize: (args) => `查询任务（${args?.date || '今天'}）`,
+  summarize: (args) => `查询任务（${args?.childName ? args.childName + ' ' : ''}${args?.date || '今天'}）`,
   execute: async (ctx, args) => {
+    const target = await resolveTargetUser(ctx, args)
     const date = typeof args?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date) ? args.date : todayStr()
     const tasks = await prisma.task.findMany({
       where: {
-        userId: ctx.userId,
+        userId: target.userId,
         AND: [{ endDate: { gte: toDateStart(date) } }, { startDate: { lte: toDateEnd(date) } }]
       },
       orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }]
     })
     return {
+      owner: target.userName,
       date,
       count: tasks.length,
       tasks: tasks.map((t) => ({
@@ -378,17 +414,24 @@ const completeTask: AITool = {
 
 const listPointRecords: AITool = {
   name: 'list_point_records',
-  description: '查询当前用户最近的积分变动记录（含任务完成、管理员调整）',
-  parameters: { type: 'object', properties: {} },
+  description: '查询用户最近的积分变动记录（含任务完成、管理员调整）。管理员可用 childName 指定孩子，缺省查自己',
+  parameters: {
+    type: 'object',
+    properties: {
+      childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
+    }
+  },
   needsConfirm: false,
-  summarize: () => '查询积分记录',
-  execute: async (ctx) => {
+  summarize: (args) => `查询积分记录${args?.childName ? `（${args.childName}）` : ''}`,
+  execute: async (ctx, args) => {
+    const target = await resolveTargetUser(ctx, args)
     const records = await prisma.pointRecord.findMany({
-      where: { userId: ctx.userId },
+      where: { userId: target.userId },
       orderBy: { createdAt: 'desc' },
       take: 20
     })
     return {
+      owner: target.userName,
       count: records.length,
       records: records.map((r) => ({
         taskTitle: r.taskTitle,
@@ -402,16 +445,22 @@ const listPointRecords: AITool = {
 
 const getPoints: AITool = {
   name: 'get_points',
-  description: '查询当前用户的当前积分余额',
-  parameters: { type: 'object', properties: {} },
+  description: '查询用户的当前积分余额。管理员可用 childName 指定孩子，缺省查自己',
+  parameters: {
+    type: 'object',
+    properties: {
+      childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
+    }
+  },
   needsConfirm: false,
-  summarize: () => '查询积分',
-  execute: async (ctx) => {
+  summarize: (args) => `查询积分${args?.childName ? `（${args.childName}）` : ''}`,
+  execute: async (ctx, args) => {
+    const target = await resolveTargetUser(ctx, args)
     const user = await prisma.user.findUnique({
-      where: { id: ctx.userId },
+      where: { id: target.userId },
       select: { points: true }
     })
-    return { points: user?.points ?? 0 }
+    return { owner: target.userName, points: user?.points ?? 0 }
   }
 }
 
@@ -493,7 +542,28 @@ const listCards: AITool = {
 
 // ---- 注册表 ----
 
+const listChildren: AITool = {
+  name: 'list_children',
+  description: '（仅管理员）列出所有孩子（普通用户）的 id、姓名、用户名、当前积分，用于后续按孩子查询课程/任务/积分',
+  parameters: { type: 'object', properties: {} },
+  needsConfirm: false,
+  summarize: () => '查询孩子列表',
+  execute: async (ctx) => {
+    if (ctx.role !== 'admin') throw new Error('仅管理员可以查看孩子列表')
+    const users = await prisma.user.findMany({
+      where: { role: { not: 'admin' } },
+      select: { id: true, name: true, username: true, points: true },
+      orderBy: { createdAt: 'asc' }
+    })
+    return {
+      count: users.length,
+      children: users.map((u) => ({ id: u.id, name: u.name, username: u.username, points: u.points }))
+    }
+  }
+}
+
 const allTools: AITool[] = [
+  listChildren,
   listSchedules,
   createSchedules,
   updateSchedule,
