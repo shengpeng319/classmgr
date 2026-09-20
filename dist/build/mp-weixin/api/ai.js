@@ -1,0 +1,1 @@
+"use strict";const t=require("../utils/request.js");exports.aiChat=function(e,r){return t.request({url:"/ai/chat",method:"POST",data:{messages:e,image:r}})},exports.aiConfirm=function(e){return t.request({url:"/ai/confirm",method:"POST",data:{confirmId:e}})};

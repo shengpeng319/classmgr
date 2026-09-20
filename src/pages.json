@@ -34,6 +34,12 @@
       }
     },
     {
+      "path": "pages/ai/ai",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/schedule/schedule",
       "style": {
         "navigationStyle": "custom"
@@ -93,8 +99,8 @@
         "selectedIconPath": "static/tabs/today-active.png"
       },
       {
-        "pagePath": "pages/history/history",
-        "text": "历史任务",
+        "pagePath": "pages/ai/ai",
+        "text": "AI",
         "iconPath": "static/tabs/history.png",
         "selectedIconPath": "static/tabs/history-active.png"
       },

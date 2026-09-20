@@ -4,6 +4,7 @@
     "pages/index/index",
     "pages/today/today",
     "pages/history/history",
+    "pages/ai/ai",
     "pages/schedule/schedule",
     "pages/lottery/lottery",
     "pages/points/points",
@@ -30,8 +31,8 @@
         "selectedIconPath": "static/tabs/today-active.png"
       },
       {
-        "pagePath": "pages/history/history",
-        "text": "历史任务",
+        "pagePath": "pages/ai/ai",
+        "text": "AI",
         "iconPath": "static/tabs/history.png",
         "selectedIconPath": "static/tabs/history-active.png"
       },

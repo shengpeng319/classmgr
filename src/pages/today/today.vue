@@ -3,6 +3,12 @@
     <CommonHeader :title="pageTitle" :show-add-btn="true" :show-import-btn="true" @add="showAddModal" @import="handleImport" />
     <FilterBar :is-admin="isAdmin" />
 
+    <view class="history-entry-row">
+      <view class="history-entry" @click="goHistory">
+        <text class="history-entry-text">历史 ›</text>
+      </view>
+    </view>
+
     <view class="task-list">
       <view class="task-section" v-if="incompleteTasks.length > 0">
         <view class="section-header">
@@ -430,6 +436,10 @@ const toggleTask = async (task: Task) => {
 
 const onAnimationClose = () => {
   showPointsAnimation.value = false
+}
+
+const goHistory = () => {
+  uni.navigateTo({ url: '/pages/history/history' })
 }
 
 const handleImport = async () => {
@@ -923,5 +933,20 @@ onMounted(() => {
   padding: 30rpx 60rpx;
   border-radius: 16rpx;
   font-size: 28rpx;
+}
+
+.history-entry-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8rpx 24rpx 0;
+}
+
+.history-entry {
+  padding: 6rpx 16rpx;
+}
+
+.history-entry-text {
+  font-size: 24rpx;
+  color: #999999;
 }
 </style>

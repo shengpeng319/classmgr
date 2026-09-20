@@ -9,6 +9,7 @@ import { profileRoutes } from './profile'
 import { taskRoutes } from './task'
 import { scheduleRoutes } from './schedule'
 import { presetPointItemRoutes } from './presetPointItem'
+import { aiRoutes } from './ai'
 
 export const router = new Router({ prefix: '/api/classmgr' })
 
@@ -23,3 +24,4 @@ lotteryRoutes(router)
 taskRoutes(router)
 scheduleRoutes(router)
 presetPointItemRoutes(router)
+aiRoutes(router)
