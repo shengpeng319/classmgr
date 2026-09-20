@@ -1,9 +1,8 @@
 // #ifdef H5
 const BASE_URL = '/api/classmgr'
 // #endif
-// #ifndef H5
-// 云托管域名，部署时替换为实际域名
-const BASE_URL = 'https://CLASSMGR_API_DOMAIN/api/classmgr'
+// #ifdef MP-WEIXIN
+const BASE_URL = '/api/classmgr'
 // #endif
 
 interface RequestOptions {
@@ -33,25 +32,42 @@ export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T
     const fullUrl = `${BASE_URL}${url}`
     console.log(`[API] ${method} ${fullUrl}`, data || '')
 
+    const handleResponse = (res: any) => {
+      console.log(`[API] ${method} ${fullUrl} → ${res.statusCode}`, { code: (res.data as any)?.code, message: (res.data as any)?.message })
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        resolve(res.data as ApiResponse<T>)
+      } else {
+        const err = new Error((res.data as ApiResponse).message || 'Request failed')
+        console.error(`[API] ${method} ${fullUrl} ✗`, err.message)
+        reject(err)
+      }
+    }
+    const handleFail = (err: any) => {
+      console.error(`[API] ${method} ${fullUrl} ✗ NETWORK ERROR`, JSON.stringify(err))
+      reject(err)
+    }
+
+    // #ifdef MP-WEIXIN
+    wx.cloud.callContainer({
+      config: { env: 'prod-d9gek74f6512f04e7' },
+      path: fullUrl,
+      method,
+      data,
+      header: { ...header, 'X-WX-SERVICE': 'express-ft3j' },
+      success: handleResponse,
+      fail: handleFail
+    })
+    // #endif
+
+    // #ifdef H5
     uni.request({
       url: fullUrl,
       method,
       data,
       header,
-      success: (res) => {
-        console.log(`[API] ${method} ${fullUrl} → ${res.statusCode}`, { code: (res.data as any)?.code, message: (res.data as any)?.message })
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data as ApiResponse<T>)
-        } else {
-          const err = new Error((res.data as ApiResponse).message || 'Request failed')
-          console.error(`[API] ${method} ${fullUrl} ✗`, err.message)
-          reject(err)
-        }
-      },
-      fail: (err) => {
-        console.error(`[API] ${method} ${fullUrl} ✗ NETWORK ERROR`, JSON.stringify(err))
-        reject(err)
-      }
+      success: handleResponse,
+      fail: handleFail
     })
+    // #endif
   })
 }

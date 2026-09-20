@@ -2,6 +2,9 @@
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 
 onLaunch(() => {
+  // #ifdef MP-WEIXIN
+  wx.cloud.init({ env: 'prod-d9gek74f6512f04e7' })
+  // #endif
   console.log('App Launch')
 })
 
