@@ -1,4 +1,10 @@
+// #ifdef H5
 const BASE_URL = '/api/classmgr'
+// #endif
+// #ifndef H5
+// 云托管域名，部署时替换为实际域名
+const BASE_URL = 'https://CLASSMGR_API_DOMAIN/api/classmgr'
+// #endif
 
 interface RequestOptions {
   url: string

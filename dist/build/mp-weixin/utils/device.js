@@ -1,0 +1,1 @@
+"use strict";const e=require("../common/vendor.js");let t="";exports.getDeviceId=function(){return t||(t=e.index.getStorageSync("deviceId"),t||(t="device_"+Date.now()+"_"+Math.random().toString(36).substr(2,9),e.index.setStorageSync("deviceId",t)),t)};

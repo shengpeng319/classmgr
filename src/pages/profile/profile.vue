@@ -192,6 +192,7 @@ const changeAvatar = () => {
 
 const fileToBase64 = (filePath: string): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // #ifdef H5
     // For H5 with blob URLs or data URLs
     if (filePath.startsWith('blob:') || filePath.startsWith('data:')) {
       fetch(filePath)
@@ -202,8 +203,9 @@ const fileToBase64 = (filePath: string): Promise<string> => {
         .catch(reject)
       return
     }
-    
-    // For native platforms, use uni API and compress
+    // #endif
+
+    // For native platforms / mp-weixin, use uni API and compress
     const fs = uni.getFileSystemManager()
     fs.readFile({
       filePath,
@@ -217,6 +219,8 @@ const fileToBase64 = (filePath: string): Promise<string> => {
   })
 }
 
+// #ifdef H5
+// H5 端使用 canvas/FileReader 压缩；小程序端走上方 uni.compressImage 路径
 const compressImage = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -255,6 +259,7 @@ const compressImage = (blob: Blob): Promise<string> => {
     reader.readAsDataURL(blob)
   })
 }
+// #endif
 
 const handleSave = async () => {
   if (!formData.value.name) {

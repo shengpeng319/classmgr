@@ -1,0 +1,13 @@
+{
+  "container_name": "classmgr-server",
+  "service_name": "classmgr",
+  "env_variables": [],
+  "cpu": 1,
+  "mem": 1024,
+  "min_num_instances": 0,
+  "max_num_instances": 3,
+  "policy_type": "cpu",
+  "policy_threshold": 60,
+  "http_port": 3000,
+  "initial_delay_seconds": 2
+}

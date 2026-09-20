@@ -1,0 +1,8 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "common-header": "../../components/CommonHeader",
+    "filter-bar": "../../components/FilterBar",
+    "points-earned-animation": "../../components/PointsEarnedAnimation"
+  }
+}

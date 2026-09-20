@@ -1,0 +1,59 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/index/index",
+    "pages/today/today",
+    "pages/history/history",
+    "pages/schedule/schedule",
+    "pages/lottery/lottery",
+    "pages/points/points",
+    "pages/user/user",
+    "pages/profile/profile",
+    "pages/points-manage/points-manage"
+  ],
+  "window": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "小孩课程管理",
+    "navigationBarBackgroundColor": "#87CEEB",
+    "backgroundColor": "#F0F8FF"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#87CEEB",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/today/today",
+        "text": "今日任务",
+        "iconPath": "static/tabs/today.png",
+        "selectedIconPath": "static/tabs/today-active.png"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史任务",
+        "iconPath": "static/tabs/history.png",
+        "selectedIconPath": "static/tabs/history-active.png"
+      },
+      {
+        "pagePath": "pages/schedule/schedule",
+        "text": "课程表",
+        "iconPath": "static/tabs/schedule.png",
+        "selectedIconPath": "static/tabs/schedule-active.png"
+      },
+      {
+        "pagePath": "pages/points/points",
+        "text": "积分",
+        "iconPath": "static/tabs/points.png",
+        "selectedIconPath": "static/tabs/points-active.png"
+      },
+      {
+        "pagePath": "pages/lottery/lottery",
+        "text": "抽卡",
+        "iconPath": "static/tabs/lottery.png",
+        "selectedIconPath": "static/tabs/lottery-active.png"
+      }
+    ]
+  },
+  "usingComponents": {}
+}
