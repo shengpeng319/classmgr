@@ -79,6 +79,34 @@
         <button class="login-btn" @click="handleLogin" :loading="loading">
           <text class="btn-text">{{ loading ? '登录中...' : '登 录' }}</text>
         </button>
+
+        <view class="register-row" @click="showRegister = true">
+          <text class="register-text">没有账号？注册新账号</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 注册弹窗 -->
+    <view class="modal-mask" v-if="showRegister" @click="showRegister = false">
+      <view class="modal" @click.stop>
+        <text class="modal-title">注册新账号</text>
+        <view class="input-group">
+          <text class="label">用户名</text>
+          <input class="input" v-model="regData.username" placeholder="请输入用户名" placeholder-class="placeholder" />
+        </view>
+        <view class="input-group">
+          <text class="label">密码</text>
+          <input class="input" v-model="regData.password" type="password" placeholder="请输入密码（至少6位）" placeholder-class="placeholder" />
+        </view>
+        <view class="error" v-if="regError">
+          <text class="error-text">{{ regError }}</text>
+        </view>
+        <button class="login-btn" @click="handleRegister" :loading="regLoading">
+          <text class="btn-text">{{ regLoading ? '注册中...' : '注 册' }}</text>
+        </button>
+        <view class="register-row" @click="showRegister = false">
+          <text class="register-text">返回登录</text>
+        </view>
       </view>
     </view>
 
@@ -104,6 +132,39 @@ const rememberMe = ref(true)
 const rememberedUsers = ref<any[]>([])
 const defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
 const currentUserId = ref('')
+
+const showRegister = ref(false)
+const regLoading = ref(false)
+const regError = ref('')
+const regData = ref({ username: '', password: '' })
+
+const handleRegister = async () => {
+  if (!regData.value.username || !regData.value.password) {
+    regError.value = '请输入用户名和密码'
+    return
+  }
+  if (regData.value.password.length < 6) {
+    regError.value = '密码至少6位'
+    return
+  }
+  regLoading.value = true
+  regError.value = ''
+  try {
+    const res: any = await request({ url: '/auth/register', method: 'POST', data: { ...regData.value } })
+    if (res.code === 0) {
+      uni.setStorageSync('token', res.data.token)
+      uni.setStorageSync('user', JSON.stringify(res.data.user))
+      uni.showToast({ title: '注册成功', icon: 'success' })
+      setTimeout(() => { uni.reLaunch({ url: '/pages/today/today' }) }, 1000)
+    } else {
+      regError.value = res.message || '注册失败'
+    }
+  } catch (e: any) {
+    regError.value = e.message || '网络错误'
+  } finally {
+    regLoading.value = false
+  }
+}
 
 const loadRememberedUsers = async () => {
   try {
@@ -518,6 +579,46 @@ onMounted(() => {
   color: #FFFFFF;
   font-size: 32rpx;
   font-weight: 600;
+}
+
+.register-row {
+  margin-top: 30rpx;
+  text-align: center;
+  padding: 10rpx;
+}
+
+.register-text {
+  color: #5BA4C4;
+  font-size: 28rpx;
+}
+
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.modal {
+  width: 600rpx;
+  background: #FFFFFF;
+  border-radius: 32rpx;
+  padding: 48rpx 40rpx;
+}
+
+.modal-title {
+  display: block;
+  text-align: center;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 40rpx;
 }
 
 .footer {
