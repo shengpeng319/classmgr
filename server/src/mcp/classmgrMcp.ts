@@ -256,7 +256,7 @@ async function handleCreateSchedule(args: any) {
       isDailyTask: isDailyTask || false,
       points: points || 1,
       startDate: startDate ? new Date(startDate + 'T00:00:00.000Z') : null,
-      endDate: endDate ? new Date(endDate + 'T23:59:59.999Z') : null
+      endDate: endDate ? new Date(endDate + 'T23:59:59.999Z') : undefined
     }
   })
   return { success: true, data: schedule, message: '课程创建成功' }
@@ -306,7 +306,7 @@ async function handleGetCourse(args: any) {
   if (!id) return { success: false, error: '缺少课程ID' }
   const course = await prisma.course.findUnique({
     where: { id },
-    include: { students: { include: { student: true } } }
+    include: { students: { include: { user: true } } }
   })
   if (!course) return { success: false, error: '课程不存在' }
   return { success: true, data: course }
@@ -348,10 +348,12 @@ async function handleDeleteCourse(args: any) {
 }
 
 async function handleAddStudentToCourse(args: any) {
-  const { courseId, studentId } = args
+  // 学生已并入 User，studentId 即 userId（兼容别名）
+  const courseId = args.courseId || args.id
+  const studentId = args.studentId || args.userId
   if (!courseId || !studentId) return { success: false, error: '缺少courseId或studentId' }
   try {
-    const cs = await prisma.courseStudent.create({ data: { courseId, studentId } })
+    const cs = await prisma.courseStudent.create({ data: { courseId, userId: studentId } })
     return { success: true, data: cs, message: '学生已加入课程' }
   } catch (e: any) {
     if (e.code === 'P2002') return { success: false, error: '学生已在课程中' }
@@ -360,9 +362,11 @@ async function handleAddStudentToCourse(args: any) {
 }
 
 async function handleRemoveStudentFromCourse(args: any) {
-  const { courseId, studentId } = args
+  // 学生已并入 User，studentId 即 userId（兼容别名）
+  const courseId = args.courseId || args.id
+  const studentId = args.studentId || args.userId
   if (!courseId || !studentId) return { success: false, error: '缺少courseId或studentId' }
-  await prisma.courseStudent.deleteMany({ where: { courseId, studentId } })
+  await prisma.courseStudent.deleteMany({ where: { courseId, userId: studentId } })
   return { success: true, message: '学生已从课程移除' }
 }
 
@@ -392,7 +396,7 @@ async function handleCreateTask(args: any) {
       userId, title, type,
       points: points || 5,
       startDate: startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(),
-      endDate: endDate ? new Date(endDate + 'T23:59:59.999Z') : null
+      endDate: endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date('2099-12-31T23:59:59.999Z')
     }
   })
   return { success: true, data: task, message: '任务创建成功' }
@@ -438,18 +442,19 @@ async function handleCompleteTask(args: any) {
 }
 
 // ============ Student Handlers ============
+// 学生已并入 User（User 自带 points），以下 student 相关操作均基于 prisma.user 实现
 async function handleListStudents(args: any) {
-  const students = await prisma.student.findMany({ orderBy: { name: 'asc' } })
+  const students = await prisma.user.findMany({ where: { role: 'user' }, orderBy: { name: 'asc' } })
   return { success: true, data: students, total: students.length }
 }
 
 async function handleGetStudent(args: any) {
   const { id } = args
   if (!id) return { success: false, error: '缺少学生ID' }
-  const student = await prisma.student.findUnique({
+  const student = await prisma.user.findUnique({
     where: { id },
     include: {
-      courses: { include: { course: true } },
+      courseStudents: { include: { course: true } },
       ownedCards: { include: { card: true } },
       records: true
     }
@@ -459,17 +464,27 @@ async function handleGetStudent(args: any) {
 }
 
 async function handleCreateStudent(args: any) {
-  const { name, avatar, points, userId } = args
+  const { name, avatar, points, username, password } = args
   if (!name) return { success: false, error: '缺少学生姓名' }
-  const student = await prisma.student.create({ data: { name, avatar, points: points || 0, userId } })
+  // User 需要 username/password，未提供时自动生成
+  const student = await prisma.user.create({
+    data: {
+      username: username || `student_${Date.now().toString(36)}`,
+      password: password || Math.random().toString(36).slice(2, 10),
+      role: 'user',
+      name,
+      avatar,
+      points: points || 0
+    }
+  })
   return { success: true, data: student, message: '学生创建成功' }
 }
 
 async function handleUpdateStudent(args: any) {
-  const { id, operation, userId, ...updateData } = args
+  const { id, operation, userId, pointsDelta, ...updateData } = args
   if (!id) return { success: false, error: '缺少学生ID' }
   try {
-    const student = await prisma.student.update({ where: { id }, data: updateData })
+    const student = await prisma.user.update({ where: { id }, data: updateData })
     return { success: true, data: student, message: '学生信息更新成功' }
   } catch (e: any) {
     if (e.code === 'P2025') return { success: false, error: '学生不存在' }
@@ -481,7 +496,7 @@ async function handleDeleteStudent(args: any) {
   const { id } = args
   if (!id) return { success: false, error: '缺少学生ID' }
   try {
-    await prisma.student.delete({ where: { id } })
+    await prisma.user.delete({ where: { id } })
     return { success: true, message: '学生删除成功' }
   } catch (e: any) {
     if (e.code === 'P2025') return { success: false, error: '学生不存在' }
@@ -492,7 +507,7 @@ async function handleDeleteStudent(args: any) {
 async function handleGetPoints(args: any) {
   const { id } = args
   if (!id) return { success: false, error: '缺少学生ID' }
-  const student = await prisma.student.findUnique({ where: { id }, select: { id: true, name: true, points: true } })
+  const student = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true, points: true } })
   if (!student) return { success: false, error: '学生不存在' }
   return { success: true, data: student }
 }
@@ -501,11 +516,11 @@ async function handleUpdatePoints(args: any) {
   const { id, pointsDelta } = args
   if (!id) return { success: false, error: '缺少学生ID' }
   if (pointsDelta === undefined) return { success: false, error: '缺少pointsDelta' }
-  const student = await prisma.student.findUnique({ where: { id } })
+  const student = await prisma.user.findUnique({ where: { id } })
   if (!student) return { success: false, error: '学生不存在' }
   const newPoints = student.points + pointsDelta
   if (newPoints < 0) return { success: false, error: '积分不足' }
-  const updated = await prisma.student.update({ where: { id }, data: { points: newPoints } })
+  const updated = await prisma.user.update({ where: { id }, data: { points: newPoints } })
   return { success: true, data: { id: updated.id, name: updated.name, points: updated.points, delta: pointsDelta }, message: '积分更新成功' }
 }
 
@@ -557,10 +572,11 @@ async function handleDeleteCard(args: any) {
 }
 
 async function handleListStudentCards(args: any) {
-  const { studentId } = args
+  // 学生已并入 User，studentId 即 userId（兼容别名）
+  const studentId = args.studentId || args.userId
   if (!studentId) return { success: false, error: '缺少学生ID' }
   const cards = await prisma.studentCard.findMany({
-    where: { studentId },
+    where: { userId: studentId },
     include: { card: true },
     orderBy: { drawnAt: 'desc' }
   })
@@ -568,9 +584,10 @@ async function handleListStudentCards(args: any) {
 }
 
 async function handleDrawCard(args: any) {
-  const { studentId } = args
+  // 学生已并入 User，studentId 即 userId（兼容别名）
+  const studentId = args.studentId || args.userId
   if (!studentId) return { success: false, error: '缺少学生ID' }
-  const student = await prisma.student.findUnique({ where: { id: studentId } })
+  const student = await prisma.user.findUnique({ where: { id: studentId } })
   if (!student) return { success: false, error: '学生不存在' }
   const activeCards = await prisma.card.findMany({ where: { isActive: true } })
   if (activeCards.length === 0) return { success: false, error: '暂无可用卡牌' }
@@ -579,8 +596,8 @@ async function handleDrawCard(args: any) {
   if (student.points < card.pointsCost) {
     return { success: false, error: `积分不足，需要${card.pointsCost}积分，当前${student.points}积分` }
   }
-  await prisma.student.update({ where: { id: studentId }, data: { points: { decrement: card.pointsCost } } })
-  await prisma.studentCard.create({ data: { studentId, cardId: card.id } })
+  await prisma.user.update({ where: { id: studentId }, data: { points: { decrement: card.pointsCost } } })
+  await prisma.studentCard.create({ data: { userId: studentId, cardId: card.id } })
   if (card.stock > 0) await prisma.card.update({ where: { id: card.id }, data: { stock: card.stock - 1 } })
   return { success: true, data: { card, studentPoints: student.points - card.pointsCost }, message: `恭喜获得「${card.name}」！消耗${card.pointsCost}积分` }
 }
@@ -589,8 +606,7 @@ async function handleDrawCard(args: any) {
 // ============ User Handlers ============
 async function handleListUsers(args: any) {
   const users = await prisma.user.findMany({
-    orderBy: { username: 'asc' },
-    include: { student: true }
+    orderBy: { username: 'asc' }
   })
   return { success: true, data: users, total: users.length }
 }
@@ -599,8 +615,7 @@ async function handleGetUser(args: any) {
   const { id } = args
   if (!id) return { success: false, error: '缺少用户ID' }
   const user = await prisma.user.findUnique({
-    where: { id },
-    include: { student: true }
+    where: { id }
   })
   if (!user) return { success: false, error: '用户不存在' }
   return { success: true, data: user }
@@ -610,8 +625,7 @@ async function handleGetUserPoints(args: any) {
   const { username } = args
   if (!username) return { success: false, error: '缺少用户名' }
   const user = await prisma.user.findUnique({
-    where: { username },
-    include: { student: true }
+    where: { username }
   })
   if (!user) return { success: false, error: '用户不存在' }
   return {
@@ -621,8 +635,8 @@ async function handleGetUserPoints(args: any) {
       username: user.username,
       role: user.role,
       name: user.name,
-      studentPoints: user.student?.points ?? null,
-      studentId: user.student?.id ?? null
+      studentPoints: user.points,
+      studentId: user.id
     }
   }
 }

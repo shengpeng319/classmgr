@@ -133,24 +133,28 @@ export async function openAICompatibleChat(
     body.response_format = { type: params.responseFormat }
   }
 
+  // ponytail: 2 次重试 + 2s 退避，覆盖智谱免费档高峰 429/500 抖动；持续恶化再考虑切付费档
   let res: any
-  try {
-    res = await fetch(config.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.apiKey}`
-      },
-      body: JSON.stringify(body)
-    })
-  } catch (e: any) {
-    throw new Error(`无法连接 LLM 服务: ${e.message}`)
+  let lastErr: any
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await fetch(config.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify(body)
+      })
+      if (res.ok) break
+      if (res.status !== 429 && res.status !== 500) break // 非瞬态错误不重试
+      lastErr = new Error(`LLM API 错误 ${res.status}: ${(await res.text().catch(() => '')).slice(0, 500)}`)
+    } catch (e: any) {
+      lastErr = new Error(`无法连接 LLM 服务: ${e.message}`)
+    }
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 2000))
   }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`LLM API 错误 ${res.status}: ${text.slice(0, 500)}`)
-  }
+  if (!res || !res.ok) throw lastErr || new Error('LLM 请求失败')
 
   const json = await res.json()
   const msg = json.choices && json.choices[0] && json.choices[0].message

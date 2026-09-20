@@ -79,7 +79,7 @@ app.use(async (ctx, next) => {
   await next()
 })
 
-const PORT = process.env.CLSMGR_BACKEND_PORT || 3000
+const PORT = Number(process.env.CLSMGR_BACKEND_PORT || 3000)
 const HOST = process.env.CLSMGR_HOST || '0.0.0.0'
 
 app.listen(PORT, HOST, () => {
