@@ -13,56 +13,63 @@ First run requires database setup:
 
 ```bash
 cd server
-npx prisma migrate dev   # apply schema → SQLite
+npx prisma migrate dev   # apply schema → SQLite (server/prisma/dev.db)
 npx prisma db seed       # populate seed data
 ```
 
 ## Dev Commands
 
 ```bash
-# Frontend (root)
-npm run dev:h5           # H5/web dev server (vite, port 5173)
+# Frontend (root) — Uni-app, use `uni` CLI (NOT vite directly)
+npm run dev:h5           # H5/web, vite under the hood, default :5173
 npm run dev:app          # native app (Android/iOS)
 npm run dev:mp-weixin    # WeChat Mini Program
 
 # Backend (server/)
-npm run dev              # tsx watch → port 3000 (env: PORT)
+npm run dev              # tsx watch src/index.ts → :3000
+npm run build            # tsc → dist/
 npm run mcp              # MCP server (stdio, for AI agent integration)
 npm run db:migrate       # prisma migrate dev
 npm run db:studio        # prisma studio (DB browser GUI)
 ```
 
+Port/host are env-driven, not flags:
+- Backend: `CLSMGR_BACKEND_PORT` (default 3000), `CLSMGR_HOST` (default 0.0.0.0), `JWT_SECRET`.
+- Frontend (H5): `CLSMGR_FRONTEND_PORT` (default 5173).
+
+`start.sh` is the one-line start on this machine — it (re)launches both via macOS `launchctl` (`com.classmgr.backend`, `com.classmgr.frontend`).
+
 ## Architecture
 
-- **Frontend**: Uni-app (Vue 3 Composition API + `<script setup>` + TypeScript), path alias `@/` → `src/`
-- **Backend**: Koa 2 + TypeScript, port 3000, API prefix `/api/classmgr`
-- **Database**: SQLite via Prisma ORM, file at `server/prisma/dev.db`
-- **Auth**: JWT (7-day expiry), Bearer token header
-- **Cron**: node-cron runs daily at 00:15 Asia/Shanghai — auto-generates `Task` records from active `Schedule` entries with `isDailyTask: true`
+- **Frontend**: Uni-app (Vue 3 Composition API + `<script setup>` + TypeScript), path alias `@/` → `src/`.
+- **Backend**: Koa 2 + TypeScript, API prefix `/api/classmgr`, aggregated in `server/src/routes/index.ts` (10 route modules). Health check at `GET /health`.
+- **Database**: SQLite via Prisma ORM, file at `server/prisma/dev.db`.
+- **Auth**: JWT 7-day expiry (`server/src/utils/jwt.ts`), `Authorization: Bearer <token>` header.
+- **Cron**: node-cron runs `15 0 * * *` Asia/Shanghai (00:15) — generates `Task` records from active `Schedule` entries where `isDailyTask: true`. On server startup `generateDailyTasks()` also runs once to backfill today's tasks.
 
 ## Critical Gotchas
 
-- **API base URL is hardcoded** in `src/utils/request.ts:1` → `http://192.168.101.50:3000/api/classmgr`. Change this for local dev if your machine is not on that IP.
-- The cron only fires while the server process is running. Tasks for today are not backfilled on restart.
-- This is a **Uni-app project** — use the `uni` CLI for builds, not Vite directly (the `npm run dev:app` / `dev:mp-weixin` / `build:*` scripts handle this). Vite is only used under the hood for H5.
+- **API base URL is relative** — frontend hardcodes `/api/classmgr` in `src/utils/request.ts:1`. In H5 dev this works via the **Vite proxy** (`vite.config.ts` forwards `/api` and `/uploads` to the backend). For App / WeChat-MP builds, a relative URL has no origin — you must swap in an absolute base URL before targeting those platforms.
+- **This is a Uni-app project** — invoke the `uni` CLI via the `npm run dev:*` / `build:*` scripts. Vite is only used under the hood for H5.
 - All platform differences use Uni-app conditional compilation (`#ifdef` / `#ifndef`), not runtime detection.
-- `src/pages.json` is the single source of truth for page routing and the 5-tab bar (今日任务, 历史任务, 课程表, 积分, 抽卡). New pages must be registered here.
-- There are **no lint, typecheck, or test scripts** in either `package.json`. TypeScript is checked only at build time.
-- Database schema changes require a Prisma migration: `cd server && npm run db:migrate`
+- `src/pages.json` is the single source of truth for routing and the 5-tab bar (今日任务, 历史任务, 课程表, 积分, 抽卡). **`pages/login/login` is the entry page** (first entry in `pages`). New pages must be registered here.
+- H5 is served under the `/classmgr/` base path (Vite `base: '/classmgr/'`), not site root.
+- There are **no lint, typecheck, or test scripts** in either `package.json` (`@playwright/test` is a leftover dep with no config/script). TypeScript is checked only at build time — run `cd server && npm run build` to typecheck the backend.
+- Database schema changes require a Prisma migration: `cd server && npm run db:migrate`.
+- Avatar/static files are served by the backend from `server/uploads/` (path `/uploads/*`), proxied to the frontend in H5 dev.
 
 ## API Conventions
 
-- Response format: `{ code: number, message: string, data?: any }`
-- All requests flow through `src/utils/request.ts` (token injected from `uni.getStorageSync('token')`)
-- API functions live in `src/api/` — one file per domain (task.ts, schedule.ts, card.ts, etc.)
-- Backend routes in `server/src/routes/`, aggregated at `server/src/routes/index.ts`
-- Admin routes require both `authMiddleware` and `adminMiddleware` (role check)
+- Response shape: `{ code: number, message: string, data?: any }`.
+- All requests flow through `src/utils/request.ts` (token injected from `uni.getStorageSync('token')`).
+- API functions live in `src/api/` — one file per domain (`task.ts`, `schedule.ts`, `card.ts`, `course.ts`, `lottery.ts`, `presetPointItem.ts`, `student.ts`).
+- Backend routes in `server/src/routes/` (one file per domain), registered in `server/src/routes/index.ts`.
+- Admin-protected routes require both `authMiddleware` and `adminMiddleware` (role check in `server/src/middleware/auth.ts`).
 
 ## Database (Prisma)
 
-- 10 models: User, RememberedUser, Course, CourseStudent, Record, Card, StudentCard, Task, Schedule, PointRecord, PresetPointItem
-- Seed users: `admin`/`admin123` (admin role), `user`/`user123`, `daniel`/`daniel123`, `sophia`/`sophia123`
-- Static files (avatars) served from `server/uploads/`
+- 11 models: User, RememberedUser, Course, CourseStudent, Record, Card, StudentCard, Task, Schedule, PointRecord, PresetPointItem.
+- Seed users: `admin`/`admin123` (admin role), `user`/`user123`, `daniel`/`daniel123`, `sophia`/`sophia123` (daniel/sophia also get seeded tasks + schedules).
 
 ## Multi-User Filtering (Admin)
 
