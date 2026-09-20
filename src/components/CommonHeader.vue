@@ -1,5 +1,5 @@
 <template>
-  <view class="header">
+  <view class="header" :style="{ paddingTop: headerTop + 'px' }">
     <view class="header-left">
       <text class="title" v-if="title">{{ title }}</text>
       <view class="add-btn" v-if="showAddBtn && isAdmin" @click="$emit('add')">
@@ -36,7 +36,7 @@
     </view>
 
     <!-- 用户菜单弹窗 -->
-    <view class="menu-modal" v-if="showMenu" @click="closeMenu">
+    <view class="menu-modal" :style="{ paddingTop: (headerTop + 8) + 'px', paddingRight: capsuleRight + 'px' }" v-if="showMenu" @click="closeMenu">
       <view class="menu-content" @click.stop>
         <view class="menu-header">
           <image class="menu-avatar" :src="avatarUrl" mode="aspectFill" />
@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { HEADER_TOP, CAPSULE_RIGHT } from '@/utils/layout'
 
 defineProps<{
   title?: string
@@ -86,6 +87,8 @@ const showManageMenu = ref(false)
 const avatarUrl = ref('')
 const username = ref('')
 const isAdmin = ref(false)
+const headerTop = ref(HEADER_TOP)
+const capsuleRight = ref(CAPSULE_RIGHT)
 
 const defaultAvatars = [
   'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',

@@ -1,0 +1,1 @@
+"use strict";const t=require("../common/vendor.js"),e=t.index.getMenuButtonBoundingClientRect(),n=t.index.getSystemInfoSync(),o=e.top+e.height+8;n.statusBarHeight;const i=n.windowWidth-e.left+8;exports.CAPSULE_RIGHT=i,exports.HEADER_TOP=o;
