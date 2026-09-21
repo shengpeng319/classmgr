@@ -91,47 +91,89 @@ async function resolveTargetUser(ctx: AIContext, args: any): Promise<{ userId: s
   return { userId: c.id, userName: c.name || c.username }
 }
 
+/**
+ * 读工具专用：admin 未指定 childName 时查所有孩子（家长问"今天有什么课"通常指孩子们的），
+ * 避免缺省落到家长自己（无数据）导致 AI 答"没有"。普通用户返回自己。
+ */
+async function resolveReadTargets(ctx: AIContext, args: any): Promise<Array<{ userId: string; userName: string }>> {
+  if (ctx.role !== 'admin') {
+    const t = await resolveTargetUser(ctx, args)
+    return [t]
+  }
+  if (args?.childName) {
+    const t = await resolveTargetUser(ctx, args)
+    return [t]
+  }
+  const children = await prisma.user.findMany({
+    where: { role: { not: 'admin' } },
+    select: { id: true, name: true, username: true },
+    orderBy: { createdAt: 'asc' }
+  })
+  if (children.length === 0) {
+    const t = await resolveTargetUser(ctx, args)
+    return [t]
+  }
+  return children.map((c) => ({ userId: c.id, userName: c.name || c.username }))
+}
+
 const listSchedules: AITool = {
   name: 'list_schedules',
-  description: '查询长期课程表（每周固定重复的课，如舞蹈课、钢琴课），返回课程名、星期、时间段、地点。凡是问「有什么课/课程/兴趣班/每周几的安排」都用这个。注意：这与 task（某天的当日任务）是两个不同概念。管理员可用 childName 指定孩子，缺省查自己',
+  description: '查询长期课程表（每周固定重复的课，如舞蹈课、钢琴课），返回课程名、星期、时间段、地点。用户问「今天/周几有什么课」时必须传 date 参数（服务端会自动按星期过滤）；问整周课表可不传。注意：这与 task（某天的当日任务）是两个不同概念。管理员可用 childName 指定孩子，缺省查自己',
   parameters: {
     type: 'object',
     properties: {
-      childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
+      childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' },
+      date: { type: 'string', description: 'YYYY-MM-DD。用户问「今天/某天有什么课」时必传，服务端只返回当天的课程；缺省返回整周课程表' }
     }
   },
   needsConfirm: false,
   summarize: (args) => `查询课程表${args?.childName ? `（${args.childName}）` : ''}`,
   execute: async (ctx, args) => {
-    const target = await resolveTargetUser(ctx, args)
+    const targets = await resolveReadTargets(ctx, args)
     const now = new Date()
-    const schedules = await prisma.schedule.findMany({
-      where: {
-        userId: target.userId,
-        isActive: true,
-        AND: [
-          { OR: [{ startDate: null }, { startDate: { lte: now } }] },
-          { OR: [{ endDate: null }, { endDate: { gte: now } }] }
-        ]
-      },
-      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
-    })
+    // 服务端按星期过滤，不依赖模型自己匹配 dayOfWeek
+    let weekday: string | null = null
+    let dateText: string | undefined
+    if (typeof args?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date)) {
+      weekday = String(new Date(args.date + 'T12:00:00+08:00').getDay())
+      dateText = args.date
+    }
+    const perChild = await Promise.all(targets.map(async (target) => {
+      const schedules = await prisma.schedule.findMany({
+        where: {
+          userId: target.userId,
+          isActive: true,
+          ...(weekday ? { dayOfWeek: { contains: weekday } } : {}),
+          AND: [
+            { OR: [{ startDate: null }, { startDate: { lte: now } }] },
+            { OR: [{ endDate: null }, { endDate: { gte: now } }] }
+          ]
+        },
+        orderBy: [{ startTime: 'asc' }]
+      })
+      return { target, schedules }
+    }))
     return {
-      owner: target.userName,
-      count: schedules.length,
-      schedules: schedules.map((s) => ({
-        id: s.id,
-        name: s.name,
-        dayOfWeek: s.dayOfWeek,
-        dayOfWeekText: formatDayOfWeek(s.dayOfWeek),
-        startTime: s.startTime,
-        endTime: s.endTime,
-        location: s.location,
-        type: s.type,
-        isDailyTask: s.isDailyTask,
-        points: s.points,
-        startDate: s.startDate,
-        endDate: s.endDate
+      date: dateText,
+      weekday,
+      count: perChild.reduce((n, p) => n + p.schedules.length, 0),
+      byChild: perChild.map((p) => ({
+        owner: p.target.userName,
+        count: p.schedules.length,
+        schedules: p.schedules.map((s) => ({
+          id: s.id,
+          name: s.name,
+          dayOfWeek: s.dayOfWeek,
+          dayOfWeekText: formatDayOfWeek(s.dayOfWeek),
+          startTime: s.startTime,
+          endTime: s.endTime,
+          location: s.location,
+          type: s.type,
+          isDailyTask: s.isDailyTask,
+          points: s.points,
+          startDate: s.startDate,
+          endDate: s.endDate
+        }))
       }))
     }
   }

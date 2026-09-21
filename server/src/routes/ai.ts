@@ -33,9 +33,13 @@ const VISION_PROMPT = `请识别这张图片中的课表/课程信息，输出�
 
 function buildSystemPrompt(user: TokenPayload): string {
   const roleText = user.role === 'admin' ? '管理员' : '普通用户'
+  const now = new Date()
+  const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const todayText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}（${weekdayNames[now.getDay()]}）`
   return `你是「小孩课程管理」应用内的 AI 助手，帮孩子和家长管理课程表、每日任务和积分。
 
 当前登录用户：${user.username}（角色：${roleText}）。所有工具都自动以该用户身份执行，不要猜测或请求别人的数据。
+今天是：${todayText}。用户问「今天/明天/周几」时，先换算成具体星期，再与课程表的 dayOfWeek 匹配。「今天有什么课」= 只列 dayOfWeek 包含今天星期的课程，不是列全部课程表。
 
 工作规则：
 1. 涉及课程/任务/积分的问题，优先调用查询工具拿真实数据，不要编造。
@@ -187,6 +191,7 @@ export function aiRoutes(router: Router) {
             tool_call_id: tc.id,
             content: JSON.stringify(result)
           })
+          console.log('[ai-chat] tool result:', JSON.stringify(result).slice(0, 300))
         }
 
         if (round === MAX_TOOL_ROUNDS - 1) {
