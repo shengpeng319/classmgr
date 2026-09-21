@@ -6,25 +6,55 @@ generator client {
 datasource db {
   // 本地开发用 sqlite；部署到云托管 MySQL 时只需：
   // 1. 把 provider 改为 "mysql"
-  // 2. 设置环境变量 DATABASE_URL 为 MySQL 连接串（如 mysql://user:pass@host:3306/classmgr）
+  // 2. 设置环境变量 DATABASE_URL 为 MySQL 连接串（如 mysql://user:***@host:3306/classmgr）
   // schema 的 model 定义对 sqlite/mysql 均兼容，无需改动
-  provider = "mysql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+model Family {
+  id        String   @id @default(uuid())
+  name      String   // 家庭名称，默认"XX家"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  children  Child[]
+}
+
+model Child {
+  id           String    @id @default(uuid())
+  familyId     String
+  name         String
+  gender       String    @default("male")
+  avatar       String?
+  points       Int       @default(0)   // 积分从 User 迁来
+  isActive     Boolean   @default(true) // 二期"启用/停用"预留
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  family       Family    @relation(fields: [familyId], references: [id])
+  tasks        Task[]
+  schedules    Schedule[]
+  pointRecords PointRecord[]
+  studentCards StudentCard[]
+  records      Record[]
+  courseStudents CourseStudent[]
 }
 
 model User {
   id        String   @id @default(uuid())
   username  String   @unique
   password  String
-  role      String   @default("user")  // "admin" or "user"
+  role      String   @default("parent") // "admin"(兼家长的管理员) or "parent"；旧值 "user" 迁移时统一转 "parent"
   name      String?
   avatar    String?
   gender    String   @default("male")
   age       Int      @default(0)
   phone     String?
   points    Int      @default(0)  // 积分（用于抽卡）
+  familyId  String?  // admin/parent 必有；预留 null
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  family    Family?  @relation(fields: [familyId], references: [id])
   rememberedUsers RememberedUser[]
   tasks     Task[]
   schedules Schedule[]
@@ -64,8 +94,10 @@ model CourseStudent {
   id        String   @id @default(uuid())
   userId    String
   courseId  String
+  childId   String?  // 迁移后非空，挂 Child.id（保留 userId 一版）
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+  child     Child?   @relation(fields: [childId], references: [id])
   course    Course   @relation(fields: [courseId], references: [id])
 
   @@unique([userId, courseId])
@@ -75,12 +107,14 @@ model Record {
   id          String   @id @default(uuid())
   userId      String
   courseId    String
+  childId     String?  // 迁移后非空（保留 userId 一版）
   date        DateTime
   status      String   // "attended", "absent", "late"
   note        String?
   pointsEarned Int     @default(0)
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id])
+  child       Child?   @relation(fields: [childId], references: [id])
 }
 
 model Card {
@@ -101,8 +135,10 @@ model StudentCard {
   id        String   @id @default(uuid())
   userId    String
   cardId    String
+  childId   String?  // 迁移后非空（保留 userId 一版）
   drawnAt   DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+  child     Child?   @relation(fields: [childId], references: [id])
   card      Card     @relation(fields: [cardId], references: [id])
 }
 
@@ -113,12 +149,14 @@ model Task {
   points      Int       @default(5)  // 任务积分
   isCompleted Boolean   @default(false)
   completedAt DateTime?
-  userId      String    // 关联用户
+  userId      String    // 关联用户（保留一版，代码不再读写）
+  childId     String?   // 迁移后非空，挂 Child.id
   startDate   DateTime  // 有效开始日期
   endDate     DateTime  // 有效结束日期
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id])
+  child       Child?    @relation(fields: [childId], references: [id])
 }
 
 model Schedule {
@@ -132,24 +170,28 @@ model Schedule {
   color       String?   @default("#87CEEB")  // 颜色标记
   isDailyTask Boolean   @default(false)  // 是否为当日任务
   points      Int       @default(1)  // 任务积分
-  userId      String    // 关联用户
+  userId      String    // 关联用户（保留一版，代码不再读写）
+  childId     String?   // 迁移后非空，挂 Child.id
   startDate   DateTime? // 有效期起始（为空表示从过去任何时间开始）
   endDate     DateTime? // 有效期结束（为空表示永久有效）
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id])
+  child       Child?    @relation(fields: [childId], references: [id])
 }
 
 model PointRecord {
   id          String   @id @default(uuid())
   userId      String
+  childId     String?  // 迁移后非空（保留 userId 一版）
   taskId      String?  // 关联任务ID
   taskTitle   String   // 任务标题（冗余存储，方便显示）
   points      Int      // 积分变化（正数表示获得，负数表示扣除）
   reason      String   // 原因： "完成任务" | "取消完成"
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id])
+  child       Child?   @relation(fields: [childId], references: [id])
 }
 
 model PresetPointItem {
