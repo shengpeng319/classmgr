@@ -48,15 +48,32 @@ export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T
     }
 
     // #ifdef MP-WEIXIN
-    wx.cloud.callContainer({
-      config: { env: 'prod-d9gek74f6512f04e7' },
-      path: fullUrl,
-      method,
-      data,
-      header: { ...header, 'X-WX-SERVICE': 'express-ft3j' },
-      success: handleResponse,
-      fail: handleFail
-    })
+    // AI 聊天走公网域名（callContainer 硬性 15s 超时，LLM 多轮工具调用必超时报 102002）
+    const isAI = url.startsWith('/ai/')
+    const mpUrl = isAI
+      ? `https://express-ft3j-317141-10-1492539128.sh.run.tcloudbase.com${fullUrl}`
+      : fullUrl
+    if (isAI) {
+      uni.request({
+        url: mpUrl,
+        method,
+        data,
+        header,
+        timeout: 120000,
+        success: handleResponse,
+        fail: handleFail
+      })
+    } else {
+      wx.cloud.callContainer({
+        config: { env: 'prod-d9gek74f6512f04e7' },
+        path: fullUrl,
+        method,
+        data,
+        header: { ...header, 'X-WX-SERVICE': 'express-ft3j' },
+        success: handleResponse,
+        fail: handleFail
+      })
+    }
     // #endif
 
     // #ifdef H5
