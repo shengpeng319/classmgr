@@ -1,5 +1,10 @@
 FROM node:20-alpine
 
+# 显式安装 openssl + 环境变量：Prisma schema engine 在 alpine 上检测 libssl 失败
+# （"Prisma failed to detect the libssl/openssl version"），必须钉住。
+RUN apk add --no-cache openssl
+ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
+
 # 云托管构建时传入以打破缓存（如 --build-arg CACHE_BUST=$(date +%s)）
 ARG CACHE_BUST=1
 RUN echo "cache bust: $CACHE_BUST"
