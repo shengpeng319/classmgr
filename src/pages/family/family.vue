@@ -1,5 +1,16 @@
 <template>
   <view class="page">
+    <!-- 无家庭：加入表单 -->
+    <view v-if="noFamily" class="card">
+      <text class="card-title">加入家庭</text>
+      <text class="invite-hint">你还没有加入任何家庭。输入家人给你的邀请码加入：</text>
+      <view class="join-row">
+        <input class="join-input" v-model="joinCode" placeholder="输入6位邀请码" placeholder-class="placeholder" />
+        <button class="join-btn" :loading="joining" @click="doJoin">加入</button>
+      </view>
+    </view>
+
+    <block v-else>
     <!-- 家庭名 -->
     <view class="card">
       <text class="card-title">家庭名</text>
@@ -29,7 +40,12 @@
           <text class="member-name">{{ m.name || m.username }}</text>
           <text class="member-meta">{{ m.role === 'admin' ? '管理员' : '家长' }} · {{ m.username }}</text>
         </view>
+        <text v-if="m.id !== myUserId" class="kick-btn" @click="doKick(m)">移出</text>
       </view>
+    </view>
+
+    <view class="leave-wrap">
+      <text class="leave-btn" @click="doLeave">退出家庭</text>
     </view>
 
     <!-- 孩子 -->
@@ -47,13 +63,14 @@
       </view>
       <text v-if="children.length === 0" class="empty-text">还没有添加孩子</text>
     </view>
+    </block>
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getV2Family, renameV2Family, regenInviteCode } from '@/api/family'
+import { getV2Family, renameV2Family, regenInviteCode, joinFamily, leaveFamily, kickMember } from '@/api/family'
 
 interface Member { id: string; username: string; name: string | null; avatar: string | null; role: string }
 interface ChildItem { id: string; name: string; gender: string; age: number | null; avatar: string | null }
@@ -62,6 +79,14 @@ const family = ref<{ id: string; name: string; inviteCode: string } | null>(null
 const members = ref<Member[]>([])
 const children = ref<ChildItem[]>([])
 const defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+const noFamily = ref(false)
+const joinCode = ref('')
+const joining = ref(false)
+const myUserId = ref('')
+
+try {
+  myUserId.value = JSON.parse(uni.getStorageSync('user') || '{}').id || ''
+} catch (e) { myUserId.value = '' }
 
 const load = async () => {
   try {
@@ -69,8 +94,14 @@ const load = async () => {
     family.value = res.data?.family || null
     members.value = res.data?.members || []
     children.value = res.data?.children || []
-  } catch (e) {
-    console.error('load family failed', e)
+    noFamily.value = false
+  } catch (e: any) {
+    // 403 = 未绑定家庭 → 显示加入表单
+    if (String(e?.message || e).includes('家庭') || (e?.code ?? '') === 403) {
+      noFamily.value = true
+    } else {
+      console.error('load family failed', e)
+    }
   }
 }
 onShow(() => load())
@@ -119,6 +150,56 @@ const regenCode = () => {
 }
 
 const goChildren = () => uni.navigateTo({ url: '/pages/children/children' })
+
+const doJoin = async () => {
+  if (!joinCode.value.trim()) return
+  joining.value = true
+  try {
+    await joinFamily(joinCode.value.trim())
+    uni.showToast({ title: '已加入', icon: 'success' })
+    joinCode.value = ''
+    load()
+  } catch (e: any) {
+    uni.showToast({ title: e.message || '加入失败', icon: 'none' })
+  } finally {
+    joining.value = false
+  }
+}
+
+const doLeave = () => {
+  uni.showModal({
+    title: '退出家庭',
+    content: '退出后将无法查看本家庭的孩子与任务，确定退出吗？',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await leaveFamily()
+        uni.showToast({ title: '已退出', icon: 'success' })
+        family.value = null; members.value = []; children.value = []
+        noFamily.value = true
+      } catch (e: any) {
+        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+      }
+    }
+  })
+}
+
+const doKick = (m: Member) => {
+  uni.showModal({
+    title: '移出成员',
+    content: `确定把「${m.name || m.username}」移出家庭吗？`,
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await kickMember(m.id)
+        uni.showToast({ title: '已移出', icon: 'success' })
+        load()
+      } catch (e: any) {
+        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+      }
+    }
+  })
+}
 </script>
 
 <style scoped>
@@ -230,6 +311,44 @@ const goChildren = () => uni.navigateTo({ url: '/pages/children/children' })
 .member-meta {
   font-size: 24rpx;
   color: #999;
+}
+.join-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+.join-input {
+  flex: 1;
+  height: 76rpx;
+  background: #f0f2f8;
+  border-radius: 14rpx;
+  padding: 0 24rpx;
+  font-size: 30rpx;
+}
+.join-btn {
+  width: 140rpx;
+  height: 76rpx;
+  line-height: 76rpx;
+  background: #4a7cf7;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 14rpx;
+  padding: 0;
+}
+.kick-btn {
+  margin-left: auto;
+  font-size: 26rpx;
+  color: #e05050;
+  padding: 8rpx 0 8rpx 20rpx;
+}
+.leave-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 16rpx 0 40rpx;
+}
+.leave-btn {
+  font-size: 28rpx;
+  color: #e05050;
 }
 .empty-text {
   font-size: 26rpx;

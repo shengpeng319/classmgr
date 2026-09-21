@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { Context, Next } from 'koa'
 import { prisma } from '../utils/prisma'
 import { generateToken, verifyToken, TokenPayload } from '../utils/jwt'
+import { authMiddleware } from '../middleware/auth'
 
 // ---------- familyScope：JWT → user → familyId → ctx.state.family ----------
 export const familyScope = async (ctx: Context, next: Next) => {
@@ -141,6 +142,41 @@ export function v2Routes(router: Router) {
     }
     const family = await prisma.family.update({ where: { id: ctx.state.family.id }, data: { name: trimmed } })
     ctx.body = { code: 0, message: 'ok', data: { family } }
+  })
+
+  // 加入家庭（无家庭用户，填邀请码）
+  router.post('/v2/family/join', authMiddleware, async (ctx) => {
+    const userId = (ctx.state.user as TokenPayload).userId as string
+    const me = await prisma.user.findUnique({ where: { id: userId } })
+    if (!me) { ctx.status = 401; ctx.body = { code: 401, message: '用户不存在', data: null }; return }
+    if (me.familyId) { ctx.status = 400; ctx.body = { code: 400, message: '你已在家庭中，请先退出当前家庭', data: null }; return }
+    const { inviteCode } = ctx.request.body as { inviteCode?: string }
+    if (!inviteCode?.trim()) { ctx.status = 400; ctx.body = { code: 400, message: '请输入邀请码', data: null }; return }
+    const fam = await prisma.family.findUnique({ where: { inviteCode: inviteCode.trim().toUpperCase() } })
+    if (!fam) { ctx.status = 400; ctx.body = { code: 400, message: '邀请码无效', data: null }; return }
+    await prisma.user.update({ where: { id: userId }, data: { familyId: fam.id } })
+    ctx.body = { code: 0, message: 'ok', data: { familyId: fam.id, familyName: fam.name } }
+  })
+
+  // 退出家庭（家长均可；最后一个成员退出后家庭保留数据）
+  router.post('/v2/family/leave', authMiddleware, async (ctx) => {
+    const userId = (ctx.state.user as TokenPayload).userId as string
+    const me = await prisma.user.findUnique({ where: { id: userId } })
+    if (!me?.familyId) { ctx.status = 400; ctx.body = { code: 400, message: '你不在任何家庭中', data: null }; return }
+    await prisma.user.update({ where: { id: userId }, data: { familyId: null } })
+    ctx.body = { code: 0, message: 'ok', data: null }
+  })
+
+  // 移除其他家庭成员
+  router.post('/v2/family/kick', familyScope, async (ctx) => {
+    const me = ctx.state.user
+    const { userId } = ctx.request.body as { userId?: string }
+    if (!userId) { ctx.status = 400; ctx.body = { code: 400, message: '缺少 userId', data: null }; return }
+    if (userId === me.userId) { ctx.status = 400; ctx.body = { code: 400, message: '不能移除自己，请用退出家庭', data: null }; return }
+    const target = await prisma.user.findUnique({ where: { id: userId } })
+    if (!target || target.familyId !== ctx.state.family.id) { ctx.status = 400; ctx.body = { code: 400, message: '该用户不在本家庭', data: null }; return }
+    await prisma.user.update({ where: { id: userId }, data: { familyId: null } })
+    ctx.body = { code: 0, message: 'ok', data: null }
   })
 
   // 重新生成邀请码

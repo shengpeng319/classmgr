@@ -68,6 +68,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+// #ifdef MP-WEIXIN
+// 页面级 onShow 不会传到组件，用事件通知
+// #endif
 import { HEADER_TOP, CAPSULE_RIGHT } from '@/utils/layout'
 
 defineProps<{
@@ -180,6 +183,7 @@ const handleLogout = () => {
 
 onMounted(() => {
   loadUserInfo()
+  uni.$on('user-updated', loadUserInfo)
 })
 </script>
 

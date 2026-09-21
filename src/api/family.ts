@@ -221,3 +221,15 @@ export function renameV2Family(name: string) {
 export function regenInviteCode() {
   return request<{ inviteCode: string }>({ url: '/v2/family/invite-code', method: 'POST' })
 }
+
+export function joinFamily(inviteCode: string) {
+  return request<{ familyId: string; familyName: string }>({ url: '/v2/family/join', method: 'POST', data: { inviteCode } })
+}
+
+export function leaveFamily() {
+  return request<null>({ url: '/v2/family/leave', method: 'POST' })
+}
+
+export function kickMember(userId: string) {
+  return request<null>({ url: '/v2/family/kick', method: 'POST', data: { userId } })
+}

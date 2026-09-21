@@ -145,6 +145,7 @@ const loadProfileFromServer = async () => {
         const localUser = JSON.parse(userStr)
         const mergedUser = { ...localUser, ...serverUser }
         uni.setStorageSync('user', JSON.stringify(mergedUser))
+        uni.$emit('user-updated')
       }
     }
   } catch (e) {
@@ -326,6 +327,7 @@ const handleSave = async () => {
       const user = userStr ? JSON.parse(userStr) : {}
       const updatedUser = { ...user, ...formData.value, avatar: finalAvatar }
       uni.setStorageSync('user', JSON.stringify(updatedUser))
+      uni.$emit('user-updated')
       avatarUrl.value = finalAvatar
       uni.showToast({ title: '保存成功', icon: 'success' })
     } else {
