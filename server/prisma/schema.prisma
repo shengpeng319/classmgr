@@ -22,6 +22,7 @@ model Child {
   familyId     String
   name         String
   gender       String    @default("male")
+  age          Int?
   avatar       String?
   points       Int       @default(0)   // 积分从 User 迁来
   isActive     Boolean   @default(true) // 二期"启用/停用"预留

@@ -9,6 +9,7 @@ export declare function childInScope(ctx: Context, childId: string): Promise<{
     updatedAt: Date;
     avatar: string | null;
     gender: string;
+    age: number | null;
     points: number;
     familyId: string;
 } | null>;

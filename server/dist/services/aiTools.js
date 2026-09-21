@@ -59,6 +59,17 @@ async function resolveTargetUser(ctx, args) {
         return { userId: ctx.userId, userName: self?.name || self?.username || ctx.username };
     }
     const kw = String(args.childName).trim();
+    // 新模型：孩子=Child 档案；old 数据 fallback User 表
+    const me = await prisma_1.prisma.user.findUnique({ where: { id: ctx.userId }, select: { familyId: true } });
+    if (me?.familyId) {
+        const kids = await prisma_1.prisma.child.findMany({ where: { familyId: me.familyId, name: { contains: kw } } });
+        if (kids.length === 1) {
+            return { userId: ctx.userId, userName: kids[0].name, childId: kids[0].id };
+        }
+        if (kids.length > 1) {
+            throw new Error(`「${kw}」匹配到多个孩子：${kids.map((c) => c.name).join('、')}，请说得更具体些`);
+        }
+    }
     const candidates = await prisma_1.prisma.user.findMany({
         where: {
             role: { not: 'admin' },
@@ -185,7 +196,8 @@ const createSchedules = {
                         endDate: { type: 'string', description: 'YYYY-MM-DD' }
                     },
                     required: ['name', 'dayOfWeek', 'startTime', 'endTime', 'type']
-                }
+                },
+                childName: { type: 'string', description: '（仅管理员）孩子姓名，课程归属谁' }
             }
         },
         required: ['schedules']
@@ -203,8 +215,13 @@ const createSchedules = {
         const list = normalizeScheduleList(args);
         if (!list.length)
             throw new Error('没有可创建的课程');
+        // LLM 有时把 childName 放进 schedules[0] 而不是顶层——提升后统一解析
+        const topChildName = args?.childName || list.find((s) => s.childName)?.childName;
+        const target = await resolveTargetUser(ctx, { ...args, childName: topChildName });
+        const childId = target.childId ?? null;
         const data = list.map((s) => ({
-            userId: ctx.userId,
+            userId: target.userId,
+            childId: childId ?? undefined,
             name: String(s.name || '').trim(),
             dayOfWeek: String(s.dayOfWeek ?? '').trim(),
             startTime: String(s.startTime || '').trim(),
@@ -228,6 +245,46 @@ const createSchedules = {
             createdCount: result.count,
             schedules: data.map((d) => `${d.name} ${formatDayOfWeek(d.dayOfWeek)} ${d.startTime}-${d.endTime}`)
         };
+    }
+};
+const createTask = {
+    name: 'create_task',
+    description: '新增某一天的一次性任务（如"明天写作业"、"周日打扫房间"）。这与 create_schedules 不同：任务是单次事项，不重复，当天可勾选完成得积分。参数：title、date(YYYY-MM-DD，"明天"等需换算成具体日期)、type(school|tutoring|homework|sports|art|other)、points(积分，默认5)。管理员可用 childName 指定孩子',
+    parameters: {
+        type: 'object',
+        properties: {
+            title: { type: 'string', description: '任务名称，如 写作业' },
+            date: { type: 'string', description: 'YYYY-MM-DD，任务在哪天，"今天/明天/周日"必须换算成具体日期' },
+            type: { type: 'string', enum: SCHEDULE_TYPES },
+            points: { type: 'number', description: '完成后得积分，默认5' },
+            childName: { type: 'string', description: '（仅管理员）孩子姓名' }
+        },
+        required: ['title', 'date']
+    },
+    needsConfirm: true,
+    summarize: (args) => `新增任务：${args?.title}（${args?.date}）`,
+    execute: async (ctx, args) => {
+        const target = await resolveTargetUser(ctx, args);
+        const date = String(args?.date || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+            throw new Error('date 必须是 YYYY-MM-DD 格式，请把"明天/周几"换算成具体日期');
+        const title = String(args?.title || '').trim();
+        if (!title)
+            throw new Error('任务名称不能为空');
+        // 任务同时写 userId（旧列）与 childId（新模型）
+        const childId = target.childId ?? null;
+        const task = await prisma_1.prisma.task.create({
+            data: {
+                userId: target.userId,
+                childId: childId ?? undefined,
+                title,
+                type: SCHEDULE_TYPES.includes(args?.type) ? args.type : 'other',
+                points: Number(args?.points) > 0 ? Number(args.points) : 5,
+                startDate: toDateStart(date),
+                endDate: toDateEnd(date)
+            }
+        });
+        return { success: true, taskId: task.id, owner: target.userName, title, date, points: task.points };
     }
 };
 const updateSchedule = {
@@ -338,7 +395,7 @@ const deleteSchedule = {
 };
 const listTasks = {
     name: 'list_tasks',
-    description: '查询某一天的当日任务列表（由长期课程/待办按天生成，含完成状态），默认今天。注意：这与 schedule（每周重复的长期课程）是两个不同概念——问「有什么课/课程安排」请用 list_schedules，不要用这个。管理员可用 childName 指定孩子，缺省查自己',
+    description: '查询某一天的当日任务列表（一次性事项，可勾选完成得积分；由系统每天从课程模板自动生成），默认今天。schedule=每周重复的课程模板（不能完成）；task=某天的一次性任务（能完成）。问「有什么课/每周几上什么」用 list_schedules；只有问「任务/要做的事/待完成」才用本工具。管理员可用 childName 指定孩子，缺省查自己',
     parameters: {
         type: 'object',
         properties: {
@@ -560,6 +617,13 @@ const listChildren = {
     execute: async (ctx) => {
         if (ctx.role !== 'admin')
             throw new Error('仅管理员可以查看孩子列表');
+        // 孩子=本家庭 Child 档案（排除残留 User 行：probe/user 等历史测试账号）
+        const me = await prisma_1.prisma.user.findUnique({ where: { id: ctx.userId }, select: { familyId: true } });
+        const family = me?.familyId
+            ? await prisma_1.prisma.child.findMany({ where: { familyId: me.familyId }, select: { id: true, name: true, points: true }, orderBy: { createdAt: 'asc' } })
+            : [];
+        if (family.length > 0)
+            return { children: family.map(c => ({ id: c.id, name: c.name, points: c.points })) };
         const users = await prisma_1.prisma.user.findMany({
             where: { role: { not: 'admin' } },
             select: { id: true, name: true, username: true, points: true },
@@ -578,6 +642,7 @@ const allTools = [
     updateSchedule,
     deleteSchedule,
     listTasks,
+    createTask,
     completeTask,
     listPointRecords,
     getPoints,

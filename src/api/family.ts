@@ -100,11 +100,11 @@ export function getV2Children() {
   return request<Child[]>({ url: '/v2/children' })
 }
 
-export function createV2Child(data: { name: string; gender?: string; avatar?: string }) {
+export function createV2Child(data: { name: string; gender?: string; age?: number; avatar?: string }) {
   return request<Child>({ url: '/v2/children', method: 'POST', data })
 }
 
-export function updateV2Child(id: string, data: { name?: string; gender?: string; avatar?: string; isActive?: boolean }) {
+export function updateV2Child(id: string, data: { name?: string; gender?: string; age?: number | null; avatar?: string; isActive?: boolean }) {
   return request<Child>({ url: `/v2/children/${id}`, method: 'PATCH', data })
 }
 

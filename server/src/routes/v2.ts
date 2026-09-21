@@ -124,14 +124,14 @@ export function v2Routes(router: Router) {
   })
 
   router.post('/v2/children', familyScope, async (ctx) => {
-    const { name, gender, avatar } = ctx.request.body as { name: string; gender?: string; avatar?: string }
+    const { name, gender, age, avatar } = ctx.request.body as { name: string; gender?: string; age?: number; avatar?: string }
     if (!name) {
       ctx.status = 400
       ctx.body = { code: 400, message: '孩子姓名必填', data: null }
       return
     }
     const child = await prisma.child.create({
-      data: { familyId: ctx.state.family.id, name, gender: gender || 'male', avatar },
+      data: { familyId: ctx.state.family.id, name, gender: gender || 'male', age: age ?? null, avatar },
     })
     ctx.status = 201
     ctx.body = { code: 0, message: 'ok', data: child }
@@ -140,10 +140,10 @@ export function v2Routes(router: Router) {
   router.patch('/v2/children/:id', familyScope, async (ctx) => {
     const child = await childInScope(ctx, ctx.params.id)
     if (!child) return
-    const { name, gender, avatar, isActive } = ctx.request.body as any
+    const { name, gender, age, avatar, isActive } = ctx.request.body as any
     const updated = await prisma.child.update({
       where: { id: child.id },
-      data: { ...(name !== undefined && { name }), ...(gender !== undefined && { gender }), ...(avatar !== undefined && { avatar }), ...(isActive !== undefined && { isActive }) },
+      data: { ...(name !== undefined && { name }), ...(gender !== undefined && { gender }), ...(age !== undefined && { age }), ...(avatar !== undefined && { avatar }), ...(isActive !== undefined && { isActive }) },
     })
     ctx.body = { code: 0, message: 'ok', data: updated }
   })

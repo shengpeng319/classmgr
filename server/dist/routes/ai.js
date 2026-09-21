@@ -25,9 +25,10 @@ function buildSystemPrompt(user) {
 3. 用户点「确认执行」后由系统直接完成操作（不经过对话）；用户说「取消」时友好收尾即可，不要执行任何操作。
 4. 星期规则：dayOfWeek 为字符串，0=周日、1=周一、2=周二、3=周三、4=周四、5=周五、6=周六，多个用逗号分隔如 "1,3"。时间用 24 小时制 "HH:mm"，下午3点=15:00。
 5. 课程 type 只能取：school(校内课)/tutoring(辅导班)/homework(作业)/sports(运动)/art(艺术)/other(其他)，游泳、篮球等归 sports。
-6. 「课程表 schedule」是长期重复安排；「任务 task」是某天的当日事项，两者是不同接口不同数据。查询时严格区分：问「有什么课/课程/兴趣班/每周几上什么」→ list_schedules；问「今天/某天有什么任务/要做的事」→ list_tasks；不确定时优先 list_schedules。新增同理：固定每周的课用 create_schedules，某天的一次性事项用 create_task。用户说"周三下午3点到4点有游泳课"应创建 schedule（create_schedules）。
-7. 用户上传课表图片时，消息中会附带【课表图片识别结果】，据此整理后用 create_schedules 创建（走确认流程）。
-8. 最终回复必须是严格 JSON：{"text": "给用户看的中文回复", "options": ["按钮1", ...]}。options 最多 4 个；确认场景必须为 ["确认执行","取消"]；普通问答可给 0-2 个合理的后续建议按钮或空数组。text 要简洁友好。`;
+6. 概念区分（最重要）：「课程 schedule」= 每周固定重复的模板，如"每周三下午游泳课"，只在课程表页显示，永远不能被"完成"；「任务 task」= 某一天的一次性事项，由系统每天从课程模板自动生成（或手动添加），可勾选完成、完成得积分，在今日任务页显示。判断标准：有"每周/周几"→ schedule；有具体某天/今天要做/完成→ task。查询严格区分：问「有什么课/课程/兴趣班/每周几上什么」→ list_schedules；问「今天/某天有什么任务/要做的事/待完成」→ list_tasks。新增同理：固定每周的课用 create_schedules，某天的一次性事项用 create_task（存在该工具，别再说没有）。用户说"周三下午3点到4点有游泳课"= 每周三 → create_schedules；说"明天下午写作业"= 某天一次性 → create_task。
+7. 主动追问（多轮补全，适用于一切数据写操作）：用户下达创建/修改/删除指令但信息不全时，先补齐再动手。各操作至少要明确：创建任务=给谁、哪天；创建课程=给谁、周几、几点到几点；完成任务/删除课程/加积分=给谁、哪条（不确定是哪条时先列出选项让用户挑，别猜）。缺什么就在 text 里一次性问全（可给选项按钮），用户答完再调用工具走确认流程。已知信息不要重复问：任务时间没说几点就先问；积分没提就默认5分并复述，不单独追问。admin 一次对话内只操作一个孩子，别自作主张分配。禁止在信息不全时编造默认值直接创建。
+8. 用户上传课表图片时，消息中会附带【课表图片识别结果】，据此整理后用 create_schedules 创建（走确认流程）。
+9. 最终回复必须是严格 JSON：{"text": "给用户看的中文回复", "options": ["按钮1", ...]}。options 最多 4 个；确认场景必须为 ["确认执行","取消"]；普通问答可给 0-2 个合理的后续建议按钮或空数组。text 要简洁友好。`;
 }
 function sanitizeHistory(input) {
     if (!Array.isArray(input))
@@ -76,129 +77,177 @@ function parseReply(text) {
     }
     return { text: t, options: [] };
 }
+const aiJobs = new Map();
+// ponytail: 内存表，单实例部署没问题；多实例时换 Redis 或落库
+setInterval(() => {
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    for (const [id, j] of aiJobs)
+        if (j.createdAt < cutoff)
+            aiJobs.delete(id);
+}, 60 * 1000).unref();
 function aiRoutes(router) {
     router.post('/ai/chat', auth_1.authMiddleware, async (ctx) => {
         const user = ctx.state.user;
         const body = (ctx.request.body || {});
-        try {
-            const history = sanitizeHistory(body.messages);
-            const image = normalizeImage(body.image);
-            if (!image && history.length === 0) {
-                ctx.body = { code: 1, message: '请输入内容或上传图片', data: null };
-                return;
-            }
-            // ① 图片先走视觉模型，识别结果作为文本上下文进入 Agent 循环
-            if (image) {
-                const visionProvider = (0, llm_1.getVisionProvider)();
-                const visionResp = await visionProvider.chat({
-                    messages: [{ role: 'user', content: VISION_PROMPT }],
-                    imageBase64: image
-                });
-                const visionNote = (0, llm_1.contentToString)(visionResp.content).trim();
-                if (visionNote) {
-                    const tag = `【课表图片识别结果】\n${visionNote}\n【/识别结果】`;
-                    const last = history[history.length - 1];
-                    if (last && last.role === 'user') {
-                        last.content = `${last.content}\n${tag}`;
-                    }
-                    else {
-                        history.push({ role: 'user', content: tag });
+        const runChat = async () => {
+            try {
+                const history = sanitizeHistory(body.messages);
+                const image = normalizeImage(body.image);
+                if (!image && history.length === 0) {
+                    return { code: 1, message: '请输入内容或上传图片', data: null };
+                }
+                // ① 图片先走视觉模型，识别结果作为文本上下文进入 Agent 循环
+                if (image) {
+                    const visionProvider = (0, llm_1.getVisionProvider)();
+                    const visionResp = await visionProvider.chat({
+                        messages: [{ role: 'user', content: VISION_PROMPT }],
+                        imageBase64: image
+                    });
+                    const visionNote = (0, llm_1.contentToString)(visionResp.content).trim();
+                    if (visionNote) {
+                        const tag = `【课表图片识别结果】\n${visionNote}\n【/识别结果】`;
+                        const last = history[history.length - 1];
+                        if (last && last.role === 'user') {
+                            last.content = `${last.content}\n${tag}`;
+                        }
+                        else {
+                            history.push({ role: 'user', content: tag });
+                        }
                     }
                 }
-            }
-            // ② Agent 循环
-            const provider = (0, llm_1.getChatProvider)();
-            const tools = (0, aiTools_1.aiToolDefs)(user.role);
-            const llmMessages = [
-                { role: 'system', content: buildSystemPrompt(user) },
-                ...history
-            ];
-            let finalText = '';
-            let confirmId;
-            for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-                const resp = await provider.chat({ messages: llmMessages, tools });
-                const toolCalls = resp.tool_calls || [];
-                if (toolCalls.length === 0) {
-                    finalText = (0, llm_1.contentToString)(resp.content);
-                    break;
+                // ② Agent 循环
+                const provider = (0, llm_1.getChatProvider)();
+                const tools = (0, aiTools_1.aiToolDefs)(user.role);
+                const llmMessages = [
+                    { role: 'system', content: buildSystemPrompt(user) },
+                    ...history
+                ];
+                let finalText = '';
+                let confirmId;
+                for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+                    const resp = await provider.chat({ messages: llmMessages, tools });
+                    const toolCalls = resp.tool_calls || [];
+                    if (toolCalls.length === 0) {
+                        finalText = (0, llm_1.contentToString)(resp.content);
+                        break;
+                    }
+                    llmMessages.push({ role: 'assistant', content: resp.content ?? '', tool_calls: toolCalls });
+                    for (const tc of toolCalls) {
+                        let args = {};
+                        try {
+                            args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+                        }
+                        catch {
+                            args = {};
+                        }
+                        let result;
+                        const tool = (0, aiTools_1.getAITool)(tc.function.name);
+                        if (!tool) {
+                            result = { status: 'error', message: `未知工具: ${tc.function.name}` };
+                        }
+                        else if (tool.needsConfirm) {
+                            const pending = (0, aiTools_1.createPendingConfirm)(user.userId, tool.name, args);
+                            confirmId = pending.confirmId;
+                            result = {
+                                status: 'needs_confirmation',
+                                confirmId: pending.confirmId,
+                                summary: pending.summary,
+                                hint: '操作尚未执行，等待用户点击「确认执行」。请在 text 中复述该操作，options 恰好为 ["确认执行","取消"]'
+                            };
+                        }
+                        else {
+                            try {
+                                const data = await tool.execute({ userId: user.userId, username: user.username, role: user.role }, args);
+                                result = { status: 'ok', data };
+                            }
+                            catch (e) {
+                                result = { status: 'error', message: e.message || '工具执行失败' };
+                            }
+                        }
+                        llmMessages.push({
+                            role: 'tool',
+                            tool_call_id: tc.id,
+                            content: JSON.stringify(result)
+                        });
+                        console.log('[ai-chat] tool result:', JSON.stringify(result).slice(0, 300));
+                    }
+                    if (round === MAX_TOOL_ROUNDS - 1) {
+                        finalText = '这次的操作步骤有点多，我先停一下。请把需求拆成小步骤再告诉我，好吗？';
+                    }
                 }
-                llmMessages.push({ role: 'assistant', content: resp.content ?? '', tool_calls: toolCalls });
-                for (const tc of toolCalls) {
-                    let args = {};
+                // ③ 最终回复：优先 json_object 格式化一轮（仅当文本不是合法 JSON 时），失败降级
+                let reply = parseReply(finalText);
+                if (finalText.trim() && !finalText.trim().startsWith('{')) {
                     try {
-                        args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+                        const reformatted = await provider.chat({
+                            messages: [
+                                ...llmMessages,
+                                { role: 'assistant', content: finalText },
+                                {
+                                    role: 'user',
+                                    content: '请把上面的回复严格转换成 JSON 对象：{"text": string, "options": string[]}，不要输出其他内容。'
+                                }
+                            ],
+                            responseFormat: 'json_object'
+                        });
+                        const retry = parseReply((0, llm_1.contentToString)(reformatted.content));
+                        if (retry.text !== 'AI 没有返回内容，请换个说法再试。')
+                            reply = retry;
                     }
                     catch {
-                        args = {};
+                        // 降级：直接用解析结果
                     }
-                    let result;
-                    const tool = (0, aiTools_1.getAITool)(tc.function.name);
-                    if (!tool) {
-                        result = { status: 'error', message: `未知工具: ${tc.function.name}` };
-                    }
-                    else if (tool.needsConfirm) {
-                        const pending = (0, aiTools_1.createPendingConfirm)(user.userId, tool.name, args);
-                        confirmId = pending.confirmId;
-                        result = {
-                            status: 'needs_confirmation',
-                            confirmId: pending.confirmId,
-                            summary: pending.summary,
-                            hint: '操作尚未执行，等待用户点击「确认执行」。请在 text 中复述该操作，options 恰好为 ["确认执行","取消"]'
-                        };
-                    }
-                    else {
-                        try {
-                            const data = await tool.execute({ userId: user.userId, username: user.username, role: user.role }, args);
-                            result = { status: 'ok', data };
-                        }
-                        catch (e) {
-                            result = { status: 'error', message: e.message || '工具执行失败' };
-                        }
-                    }
-                    llmMessages.push({
-                        role: 'tool',
-                        tool_call_id: tc.id,
-                        content: JSON.stringify(result)
-                    });
-                    console.log('[ai-chat] tool result:', JSON.stringify(result).slice(0, 300));
                 }
-                if (round === MAX_TOOL_ROUNDS - 1) {
-                    finalText = '这次的操作步骤有点多，我先停一下。请把需求拆成小步骤再告诉我，好吗？';
-                }
+                return { code: 0, message: 'ok', data: { ...reply, confirmId } };
             }
-            // ③ 最终回复：优先 json_object 格式化一轮（仅当文本不是合法 JSON 时），失败降级
-            let reply = parseReply(finalText);
-            if (finalText.trim() && !finalText.trim().startsWith('{')) {
-                try {
-                    const reformatted = await provider.chat({
-                        messages: [
-                            ...llmMessages,
-                            { role: 'assistant', content: finalText },
-                            {
-                                role: 'user',
-                                content: '请把上面的回复严格转换成 JSON 对象：{"text": string, "options": string[]}，不要输出其他内容。'
-                            }
-                        ],
-                        responseFormat: 'json_object'
-                    });
-                    const retry = parseReply((0, llm_1.contentToString)(reformatted.content));
-                    if (retry.text !== 'AI 没有返回内容，请换个说法再试。')
-                        reply = retry;
+            catch (e) {
+                if (e instanceof llm_1.AIConfigError) {
+                    return { code: 1, message: e.message, data: null };
                 }
-                catch {
-                    // 降级：直接用解析结果
-                }
+                console.error('[AI] chat error:', e);
+                return { code: 1, message: `AI 服务调用失败：${e.message || '未知错误'}`, data: null };
             }
-            ctx.body = { code: 0, message: 'ok', data: { ...reply, confirmId } };
+        };
+        // 同步模式（H5/开发者工具/直连场景）：?wait=1 或 body.wait=true 时直接等结果
+        if (body.wait) {
+            ctx.body = await runChat();
+            return;
         }
-        catch (e) {
-            if (e instanceof llm_1.AIConfigError) {
-                ctx.body = { code: 1, message: e.message, data: null };
-                return;
-            }
-            console.error('[AI] chat error:', e);
-            ctx.body = { code: 1, message: `AI 服务调用失败：${e.message || '未知错误'}`, data: null };
+        // 异步模式（小程序正式版）：立即返回 jobId，前端轮询 /ai/result
+        const job = {
+            id: `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            userId: user.userId,
+            status: 'running',
+            createdAt: Date.now()
+        };
+        aiJobs.set(job.id, job);
+        runChat()
+            .then((r) => {
+            job.status = r.code === 0 ? 'done' : 'error';
+            job.result = r;
+            if (r.code !== 0)
+                job.error = r.message;
+        })
+            .catch((e) => {
+            job.status = 'error';
+            job.error = e.message || '未知错误';
+        });
+        ctx.body = { code: 0, message: 'ok', data: { jobId: job.id } };
+    });
+    // 轮询任务结果
+    router.get('/ai/result/:jobId', auth_1.authMiddleware, async (ctx) => {
+        const user = ctx.state.user;
+        const job = aiJobs.get(String(ctx.params.jobId));
+        if (!job || job.userId !== user.userId) {
+            ctx.body = { code: 1, message: '任务不存在或已过期', data: null };
+            return;
         }
+        if (job.status === 'running') {
+            ctx.body = { code: 0, message: 'ok', data: { status: 'running' } };
+            return;
+        }
+        aiJobs.delete(job.id);
+        ctx.body = { code: 0, message: 'ok', data: { status: job.status, ...(job.result?.data || {}), message: job.error } };
     });
     router.post('/ai/confirm', auth_1.authMiddleware, async (ctx) => {
         const user = ctx.state.user;
