@@ -1,9 +1,5 @@
 <template>
   <view class="page">
-    <view class="nav-back" @click="goBack">
-      <text class="nav-back-text">‹ 返回</text>
-    </view>
-
     <view class="header">
       <text class="family-name">{{ family?.name || '我的家庭' }}</text>
       <text class="edit-name" @click="renameFamily">改名</text>
@@ -74,8 +70,6 @@ const load = async () => {
   }
 }
 onShow(() => load())
-
-const goBack = () => uni.navigateBack()
 
 const renameFamily = () => {
   uni.showModal({
