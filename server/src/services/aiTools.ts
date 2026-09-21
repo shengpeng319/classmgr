@@ -93,7 +93,7 @@ async function resolveTargetUser(ctx: AIContext, args: any): Promise<{ userId: s
 
 const listSchedules: AITool = {
   name: 'list_schedules',
-  description: '查询用户的所有长期课程表安排（含课程名、星期、时间、地点、类型、积分）。管理员可用 childName 指定孩子（如「Sophia」），缺省查自己',
+  description: '查询长期课程表（每周固定重复的课，如舞蹈课、钢琴课），返回课程名、星期、时间段、地点。凡是问「有什么课/课程/兴趣班/每周几的安排」都用这个。注意：这与 task（某天的当日任务）是两个不同概念。管理员可用 childName 指定孩子，缺省查自己',
   parameters: {
     type: 'object',
     properties: {
@@ -316,7 +316,7 @@ const deleteSchedule: AITool = {
 
 const listTasks: AITool = {
   name: 'list_tasks',
-  description: '查询用户某天的任务列表（默认今天），返回标题、类型、积分、完成状态。管理员可用 childName 指定孩子，缺省查自己',
+  description: '查询某一天的当日任务列表（由长期课程/待办按天生成，含完成状态），默认今天。注意：这与 schedule（每周重复的长期课程）是两个不同概念——问「有什么课/课程安排」请用 list_schedules，不要用这个。管理员可用 childName 指定孩子，缺省查自己',
   parameters: {
     type: 'object',
     properties: {

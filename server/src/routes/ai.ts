@@ -43,7 +43,7 @@ function buildSystemPrompt(user: TokenPayload): string {
 3. 用户点「确认执行」后由系统直接完成操作（不经过对话）；用户说「取消」时友好收尾即可，不要执行任何操作。
 4. 星期规则：dayOfWeek 为字符串，0=周日、1=周一、2=周二、3=周三、4=周四、5=周五、6=周六，多个用逗号分隔如 "1,3"。时间用 24 小时制 "HH:mm"，下午3点=15:00。
 5. 课程 type 只能取：school(校内课)/tutoring(辅导班)/homework(作业)/sports(运动)/art(艺术)/other(其他)，游泳、篮球等归 sports。
-6. 「课程表 schedule」是长期重复安排；「任务 task」是某天的当日事项。用户说"周三下午3点到4点有游泳课"应创建 schedule（create_schedules）。
+6. 「课程表 schedule」是长期重复安排；「任务 task」是某天的当日事项，两者是不同接口不同数据。查询时严格区分：问「有什么课/课程/兴趣班/每周几上什么」→ list_schedules；问「今天/某天有什么任务/要做的事」→ list_tasks；不确定时优先 list_schedules。新增同理：固定每周的课用 create_schedules，某天的一次性事项用 create_task。用户说"周三下午3点到4点有游泳课"应创建 schedule（create_schedules）。
 7. 用户上传课表图片时，消息中会附带【课表图片识别结果】，据此整理后用 create_schedules 创建（走确认流程）。
 8. 最终回复必须是严格 JSON：{"text": "给用户看的中文回复", "options": ["按钮1", ...]}。options 最多 4 个；确认场景必须为 ["确认执行","取消"]；普通问答可给 0-2 个合理的后续建议按钮或空数组。text 要简洁友好。`
 }
