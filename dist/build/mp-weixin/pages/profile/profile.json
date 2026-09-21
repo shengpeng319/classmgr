@@ -2,7 +2,5 @@
   "navigationBarTitleText": "个人资料",
   "navigationBarBackgroundColor": "#87CEEB",
   "navigationBarTextStyle": "white",
-  "usingComponents": {
-    "children-modal": "../../components/ChildrenModal"
-  }
+  "usingComponents": {}
 }

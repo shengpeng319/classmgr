@@ -54,16 +54,27 @@
         </button>
       </view>
     </view>
+
+    <!-- 头像库选择弹层 -->
+    <view v-if="showAvatarPicker" class="picker-mask" @click="showAvatarPicker = false">
+      <view class="picker-box" @click.stop>
+        <text class="picker-title">选择头像</text>
+        <view class="picker-grid">
+          <image
+            v-for="(av, i) in defaultAvatars" :key="i"
+            class="picker-avatar" :class="{ active: avatarUrl === av }"
+            :src="av" mode="aspectFill" @click="avatarUrl = av; showAvatarPicker = false"
+          />
+        </view>
+      </view>
+    </view>
   </view>
-  <ChildrenModal :visible="showChildren" @close="showChildren = false" />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { request } from '@/utils/request'
-import ChildrenModal from '@/components/ChildrenModal.vue'
 
-const showChildren = ref(false)
 
 const formData = ref({
   name: '',
@@ -78,7 +89,10 @@ const saving = ref(false)
 const defaultAvatars = [
   'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
   'https://cdn-icons-png.flaticon.com/512/4140/4140048.png',
-  'https://cdn-icons-png.flaticon.com/512/699/699730.png'
+  'https://cdn-icons-png.flaticon.com/512/4139/4139981.png',
+  'https://cdn-icons-png.flaticon.com/512/1998/1998592.png',
+  'https://cdn-icons-png.flaticon.com/512/1998/1998721.png',
+  'https://cdn-icons-png.flaticon.com/512/192/192395.png'
 ]
 
 const loadProfile = () => {
@@ -138,22 +152,15 @@ const loadProfileFromServer = async () => {
   }
 }
 
-const onAvatarTap = () => {
-  uni.showActionSheet({
-    itemList: ['孩子信息', '更换头像'],
-    success: (res) => {
-      if (res.tapIndex === 0) showChildren.value = true
-      else changeAvatar()
-    }
-  })
-}
+const onAvatarTap = () => changeAvatar()
+const showAvatarPicker = ref(false)
 
 const changeAvatar = () => {
   uni.showActionSheet({
-    itemList: ['拍照', '从相册选择', '使用默认头像'],
+    itemList: ['拍照', '从相册选择', '从头像库选择'],
     success: (res) => {
       if (res.tapIndex === 2) {
-        avatarUrl.value = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)]
+        showAvatarPicker.value = true
       } else {
         uni.chooseImage({
           sourceType: res.tapIndex === 0 ? ['camera'] : ['album'],
@@ -537,5 +544,43 @@ onMounted(() => {
 
 .logout-btn .btn-text {
   color: #666;
+}
+
+.picker-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.picker-box {
+  width: 560rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 32rpx;
+}
+.picker-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 24rpx;
+  display: block;
+}
+.picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28rpx;
+}
+.picker-avatar {
+  width: 110rpx;
+  height: 110rpx;
+  border-radius: 50%;
+  border: 4rpx solid transparent;
+  background: #eee;
+}
+.picker-avatar.active {
+  border-color: #4a7cf7;
 }
 </style>

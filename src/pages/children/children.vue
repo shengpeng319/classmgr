@@ -27,6 +27,9 @@
           class="preset-avatar" :class="{ active: form.avatar === av }"
           :src="av" mode="aspectFill" @click="form.avatar = av"
         />
+        <view class="preset-avatar custom-add" :class="{ active: isCustomAvatar }" @click="chooseCustomAvatar">
+          <text class="custom-add-text">{{ isCustomAvatar ? '✓' : '+' }}</text>
+        </view>
       </view>
       <input v-model="form.name" class="form-input" placeholder="姓名" />
       <view class="form-row">
@@ -108,6 +111,49 @@ const submit = async () => {
   } finally {
     saving.value = false
   }
+}
+
+const isCustomAvatar = ref(false)
+// 判断当前 form.avatar 是否自定义（非预设库）
+const syncCustomFlag = () => {
+  isCustomAvatar.value = !!form.value.avatar && !presetAvatars.includes(form.value.avatar)
+}
+import { watch } from 'vue'
+watch(() => form.value.avatar, syncCustomFlag, { immediate: true })
+
+const chooseCustomAvatar = () => {
+  uni.showActionSheet({
+    itemList: ['拍照', '从相册选择'],
+    success: (res) => {
+      uni.chooseImage({
+        sourceType: res.tapIndex === 0 ? ['camera'] : ['album'],
+        count: 1,
+        success: async (r) => {
+          const tmp = r.tempFilePaths[0]
+          try {
+            let src = tmp
+            // @ts-ignore
+            if (uni.compressImage) {
+              try {
+                const c = await new Promise<any>((resolve, reject) => {
+                  // @ts-ignore
+                  uni.compressImage({ src: tmp, quality: 50, success: resolve, fail: reject })
+                })
+                if (c.tempFilePath) src = c.tempFilePath
+              } catch (e) { /* 用原图 */ }
+            }
+            const fs = uni.getFileSystemManager()
+            const b64 = await new Promise<string>((resolve, reject) => {
+              fs.readFile({ filePath: src, encoding: 'base64', success: (res: any) => resolve(`data:image/jpeg;base64,${res.data}`), fail: reject })
+            })
+            form.value.avatar = b64
+          } catch (e) {
+            uni.showToast({ title: '读取图片失败', icon: 'none' })
+          }
+        }
+      })
+    }
+  })
 }
 
 const removeChild = (c: ChildItem) => {
@@ -219,6 +265,16 @@ const removeChild = (c: ChildItem) => {
 }
 .preset-avatar.active {
   border-color: #4a7cf7;
+}
+.custom-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f2f8;
+}
+.custom-add-text {
+  font-size: 44rpx;
+  color: #4a7cf7;
 }
 .form-input {
   background: #f5f6fa;
