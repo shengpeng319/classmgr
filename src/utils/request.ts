@@ -44,7 +44,13 @@ export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T
     }
     const handleFail = (err: any) => {
       console.error(`[API] ${method} ${fullUrl} ✗ NETWORK ERROR`, JSON.stringify(err))
-      reject(err)
+      // 把平台 errMsg 透出（如 url not in domain list），别只显示泛化的"网络错误"
+      const msg: string = err?.errMsg || err?.message || ''
+      reject(new Error(
+        msg.includes('domain')
+          ? '域名未在小程序后台配置（request 合法域名），请在 mp 后台添加'
+          : msg || '网络错误，请稍后再试。'
+      ))
     }
 
     // #ifdef MP-WEIXIN
