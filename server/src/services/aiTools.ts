@@ -634,6 +634,12 @@ const listChildren: AITool = {
   summarize: () => '查询孩子列表',
   execute: async (ctx) => {
     if (ctx.role !== 'admin') throw new Error('仅管理员可以查看孩子列表')
+    // 孩子=本家庭 Child 档案（排除残留 User 行：probe/user 等历史测试账号）
+    const me = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { familyId: true } })
+    const family = me?.familyId
+      ? await prisma.child.findMany({ where: { familyId: me.familyId }, select: { id: true, name: true, points: true }, orderBy: { createdAt: 'asc' } })
+      : []
+    if (family.length > 0) return { children: family.map(c => ({ id: c.id, name: c.name, points: c.points })) }
     const users = await prisma.user.findMany({
       where: { role: { not: 'admin' } },
       select: { id: true, name: true, username: true, points: true },
