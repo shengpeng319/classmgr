@@ -1,6 +1,4 @@
 {
-  "navigationStyle": "custom",
-  "usingComponents": {
-    "common-header": "../../components/CommonHeader"
-  }
+  "navigationBarTitleText": "孩子信息",
+  "usingComponents": {}
 }

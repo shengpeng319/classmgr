@@ -1,7 +1,5 @@
 <template>
   <view class="page">
-    <CommonHeader title="孩子信息" />
-
     <scroll-view scroll-y class="body">
       <view v-if="children.length === 0" class="empty-box">
         <text class="empty-text">还没有添加孩子</text>
@@ -48,7 +46,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import CommonHeader from '@/components/CommonHeader.vue'
 import { getV2Children, createV2Child, updateV2Child, deleteV2Child } from '@/api/family'
 
 interface ChildItem { id: string; name: string; gender: string; age: number | null; avatar: string | null }

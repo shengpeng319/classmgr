@@ -6,7 +6,7 @@
     }
   },
   "pages": [
-    { "path": "pages/children/children", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/children/children", "style": { "navigationBarTitleText": "孩子信息" } },
     {
       "path": "pages/login/login",
       "style": {

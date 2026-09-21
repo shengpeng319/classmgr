@@ -3,16 +3,11 @@
     <CommonHeader :title="pageTitle" :show-add-btn="true" :show-import-btn="true" @add="showAddModal" @import="handleImport" />
     <FilterBar :is-admin="isAdmin" />
 
-    <view class="history-entry-row">
-      <view class="history-entry" @click="goHistory">
-        <text class="history-entry-text">历史 ›</text>
-      </view>
-    </view>
-
     <view class="task-list">
       <view class="task-section" v-if="incompleteTasks.length > 0">
         <view class="section-header">
           <text class="section-title">待完成 ({{ incompleteTasks.length }})</text>
+          <text class="history-entry-text" @click="goHistory">历史 ›</text>
         </view>
         <view class="task-item" v-for="task in incompleteTasks" :key="task.id" @click="toggleTask(task)">
           <view class="task-checkbox" @click.stop="toggleTask(task)">
@@ -552,6 +547,9 @@ onShow(() => {
 
 .section-header {
   padding: 12rpx 8rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .section-title {
@@ -888,16 +886,6 @@ onShow(() => {
   padding: 30rpx 60rpx;
   border-radius: 16rpx;
   font-size: 28rpx;
-}
-
-.history-entry-row {
-  display: flex;
-  justify-content: flex-end;
-  padding: 8rpx 24rpx 0;
-}
-
-.history-entry {
-  padding: 6rpx 16rpx;
 }
 
 .history-entry-text {
