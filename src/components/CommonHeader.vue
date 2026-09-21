@@ -49,6 +49,9 @@
         <view class="menu-item" @click="goToProfile">
           <text class="menu-item-text">个人资料</text>
         </view>
+        <view class="menu-item" @click="goToChildren">
+          <text class="menu-item-text">孩子信息</text>
+        </view>
         <view class="menu-item" @click="switchUser">
           <text class="menu-item-text">切换用户</text>
         </view>
@@ -107,6 +110,11 @@ const loadUserInfo = () => {
     username.value = '未登录'
     avatarUrl.value = defaultAvatars[0]
   }
+}
+
+const goToChildren = () => {
+  showMenu.value = false
+  uni.navigateTo({ url: '/pages/children/children' })
 }
 
 const toggleMenu = () => {

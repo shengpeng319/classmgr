@@ -1,5 +1,6 @@
 {
   "pages": [
+    "pages/children/children",
     "pages/login/login",
     "pages/index/index",
     "pages/today/today",

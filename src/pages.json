@@ -6,6 +6,7 @@
     }
   },
   "pages": [
+    { "path": "pages/children/children", "style": { "navigationStyle": "custom" } },
     {
       "path": "pages/login/login",
       "style": {
