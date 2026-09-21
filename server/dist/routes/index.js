@@ -16,6 +16,7 @@ const task_1 = require("./task");
 const schedule_1 = require("./schedule");
 const presetPointItem_1 = require("./presetPointItem");
 const ai_1 = require("./ai");
+const v2_1 = require("./v2");
 exports.router = new koa_router_1.default({ prefix: '/api/classmgr' });
 // Register routes
 (0, auth_1.authRoutes)(exports.router);
@@ -29,4 +30,5 @@ exports.router = new koa_router_1.default({ prefix: '/api/classmgr' });
 (0, schedule_1.scheduleRoutes)(exports.router);
 (0, presetPointItem_1.presetPointItemRoutes)(exports.router);
 (0, ai_1.aiRoutes)(exports.router);
+(0, v2_1.v2Routes)(exports.router);
 //# sourceMappingURL=index.js.map

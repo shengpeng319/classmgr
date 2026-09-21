@@ -48,40 +48,114 @@ function normalizeScheduleList(args) {
     return [];
 }
 // ---- 工具实现 ----
+/**
+ * 解析查询目标用户：admin 可用 childName 指定孩子（模糊匹配用户名/姓名），缺省查自己；
+ * 普通用户一律查自己（不信任模型传参）。
+ * ponytail: childName 需唯一匹配，歧义时报错列出候选；孩子多了再考虑精确 id 传参。
+ */
+async function resolveTargetUser(ctx, args) {
+    if (ctx.role !== 'admin' || !args?.childName) {
+        const self = await prisma_1.prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, username: true } });
+        return { userId: ctx.userId, userName: self?.name || self?.username || ctx.username };
+    }
+    const kw = String(args.childName).trim();
+    const candidates = await prisma_1.prisma.user.findMany({
+        where: {
+            role: { not: 'admin' },
+            OR: [{ name: { contains: kw } }, { username: { contains: kw } }]
+        },
+        select: { id: true, name: true, username: true }
+    });
+    if (candidates.length === 0)
+        throw new Error(`找不到孩子「${kw}」，可先用 list_children 查看孩子列表`);
+    if (candidates.length > 1) {
+        throw new Error(`「${kw}」匹配到多个孩子：${candidates.map((c) => c.name || c.username).join('、')}，请说得更具体些`);
+    }
+    const c = candidates[0];
+    return { userId: c.id, userName: c.name || c.username };
+}
+/**
+ * 读工具专用：admin 未指定 childName 时查所有孩子（家长问"今天有什么课"通常指孩子们的），
+ * 避免缺省落到家长自己（无数据）导致 AI 答"没有"。普通用户返回自己。
+ */
+async function resolveReadTargets(ctx, args) {
+    if (ctx.role !== 'admin') {
+        const t = await resolveTargetUser(ctx, args);
+        return [t];
+    }
+    if (args?.childName) {
+        const t = await resolveTargetUser(ctx, args);
+        return [t];
+    }
+    const children = await prisma_1.prisma.user.findMany({
+        where: { role: { not: 'admin' }, name: { not: null } },
+        select: { id: true, name: true, username: true },
+        orderBy: { createdAt: 'asc' }
+    });
+    if (children.length === 0) {
+        const t = await resolveTargetUser(ctx, args);
+        return [t];
+    }
+    return children.map((c) => ({ userId: c.id, userName: c.name || c.username }));
+}
 const listSchedules = {
     name: 'list_schedules',
-    description: '查询当前用户的所有长期课程表安排（含课程名、星期、时间、地点、类型、积分）',
-    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    description: '查询长期课程表（每周固定重复的课，如舞蹈课、钢琴课），返回课程名、星期、时间段、地点。用户问「今天/周几有什么课」时必须传 date 参数（服务端会自动按星期过滤）；问整周课表可不传。注意：这与 task（某天的当日任务）是两个不同概念。管理员可用 childName 指定孩子，缺省查自己',
+    parameters: {
+        type: 'object',
+        properties: {
+            childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' },
+            date: { type: 'string', description: 'YYYY-MM-DD。用户问「今天/某天有什么课」时必传，服务端只返回当天的课程；缺省返回整周课程表' }
+        }
+    },
     needsConfirm: false,
-    summarize: () => '查询课程表',
-    execute: async (ctx) => {
+    summarize: (args) => `查询课程表${args?.childName ? `（${args.childName}）` : ''}`,
+    execute: async (ctx, args) => {
+        const targets = await resolveReadTargets(ctx, args);
         const now = new Date();
-        const schedules = await prisma_1.prisma.schedule.findMany({
-            where: {
-                userId: ctx.userId,
-                isActive: true,
-                AND: [
-                    { OR: [{ startDate: null }, { startDate: { lte: now } }] },
-                    { OR: [{ endDate: null }, { endDate: { gte: now } }] }
-                ]
-            },
-            orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
-        });
+        // 服务端按星期过滤，不依赖模型自己匹配 dayOfWeek
+        let weekday = null;
+        let dateText;
+        if (typeof args?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date)) {
+            weekday = String(new Date(args.date + 'T12:00:00+08:00').getDay());
+            dateText = args.date;
+        }
+        const perChild = await Promise.all(targets.map(async (target) => {
+            const schedules = await prisma_1.prisma.schedule.findMany({
+                where: {
+                    userId: target.userId,
+                    isActive: true,
+                    ...(weekday ? { dayOfWeek: { contains: weekday } } : {}),
+                    AND: [
+                        { OR: [{ startDate: null }, { startDate: { lte: now } }] },
+                        { OR: [{ endDate: null }, { endDate: { gte: now } }] }
+                    ]
+                },
+                orderBy: [{ startTime: 'asc' }]
+            });
+            return { target, schedules };
+        }));
         return {
-            count: schedules.length,
-            schedules: schedules.map((s) => ({
-                id: s.id,
-                name: s.name,
-                dayOfWeek: s.dayOfWeek,
-                dayOfWeekText: formatDayOfWeek(s.dayOfWeek),
-                startTime: s.startTime,
-                endTime: s.endTime,
-                location: s.location,
-                type: s.type,
-                isDailyTask: s.isDailyTask,
-                points: s.points,
-                startDate: s.startDate,
-                endDate: s.endDate
+            date: dateText,
+            weekday,
+            count: perChild.reduce((n, p) => n + p.schedules.length, 0),
+            byChild: perChild.map((p) => ({
+                owner: p.target.userName,
+                count: p.schedules.length,
+                schedules: p.schedules.map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    dayOfWeek: s.dayOfWeek,
+                    dayOfWeekText: formatDayOfWeek(s.dayOfWeek),
+                    startTime: s.startTime,
+                    endTime: s.endTime,
+                    location: s.location,
+                    type: s.type,
+                    isDailyTask: s.isDailyTask,
+                    points: s.points,
+                    startDate: s.startDate,
+                    endDate: s.endDate
+                }))
             }))
         };
     }
@@ -264,25 +338,28 @@ const deleteSchedule = {
 };
 const listTasks = {
     name: 'list_tasks',
-    description: '查询当前用户某天的任务列表（默认今天），返回标题、类型、积分、完成状态',
+    description: '查询某一天的当日任务列表（由长期课程/待办按天生成，含完成状态），默认今天。注意：这与 schedule（每周重复的长期课程）是两个不同概念——问「有什么课/课程安排」请用 list_schedules，不要用这个。管理员可用 childName 指定孩子，缺省查自己',
     parameters: {
         type: 'object',
         properties: {
-            date: { type: 'string', description: 'YYYY-MM-DD，缺省为今天' }
+            date: { type: 'string', description: 'YYYY-MM-DD，缺省为今天' },
+            childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
         }
     },
     needsConfirm: false,
-    summarize: (args) => `查询任务（${args?.date || '今天'}）`,
+    summarize: (args) => `查询任务（${args?.childName ? args.childName + ' ' : ''}${args?.date || '今天'}）`,
     execute: async (ctx, args) => {
+        const target = await resolveTargetUser(ctx, args);
         const date = typeof args?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date) ? args.date : todayStr();
         const tasks = await prisma_1.prisma.task.findMany({
             where: {
-                userId: ctx.userId,
+                userId: target.userId,
                 AND: [{ endDate: { gte: toDateStart(date) } }, { startDate: { lte: toDateEnd(date) } }]
             },
             orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }]
         });
         return {
+            owner: target.userName,
             date,
             count: tasks.length,
             tasks: tasks.map((t) => ({
@@ -353,17 +430,24 @@ const completeTask = {
 };
 const listPointRecords = {
     name: 'list_point_records',
-    description: '查询当前用户最近的积分变动记录（含任务完成、管理员调整）',
-    parameters: { type: 'object', properties: {} },
+    description: '查询用户最近的积分变动记录（含任务完成、管理员调整）。管理员可用 childName 指定孩子，缺省查自己',
+    parameters: {
+        type: 'object',
+        properties: {
+            childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
+        }
+    },
     needsConfirm: false,
-    summarize: () => '查询积分记录',
-    execute: async (ctx) => {
+    summarize: (args) => `查询积分记录${args?.childName ? `（${args.childName}）` : ''}`,
+    execute: async (ctx, args) => {
+        const target = await resolveTargetUser(ctx, args);
         const records = await prisma_1.prisma.pointRecord.findMany({
-            where: { userId: ctx.userId },
+            where: { userId: target.userId },
             orderBy: { createdAt: 'desc' },
             take: 20
         });
         return {
+            owner: target.userName,
             count: records.length,
             records: records.map((r) => ({
                 taskTitle: r.taskTitle,
@@ -376,16 +460,22 @@ const listPointRecords = {
 };
 const getPoints = {
     name: 'get_points',
-    description: '查询当前用户的当前积分余额',
-    parameters: { type: 'object', properties: {} },
+    description: '查询用户的当前积分余额。管理员可用 childName 指定孩子，缺省查自己',
+    parameters: {
+        type: 'object',
+        properties: {
+            childName: { type: 'string', description: '（仅管理员）孩子姓名或用户名，模糊匹配' }
+        }
+    },
     needsConfirm: false,
-    summarize: () => '查询积分',
-    execute: async (ctx) => {
+    summarize: (args) => `查询积分${args?.childName ? `（${args.childName}）` : ''}`,
+    execute: async (ctx, args) => {
+        const target = await resolveTargetUser(ctx, args);
         const user = await prisma_1.prisma.user.findUnique({
-            where: { id: ctx.userId },
+            where: { id: target.userId },
             select: { points: true }
         });
-        return { points: user?.points ?? 0 };
+        return { owner: target.userName, points: user?.points ?? 0 };
     }
 };
 const addPoints = {
@@ -461,7 +551,28 @@ const listCards = {
     }
 };
 // ---- 注册表 ----
+const listChildren = {
+    name: 'list_children',
+    description: '（仅管理员）列出所有孩子（普通用户）的 id、姓名、用户名、当前积分，用于后续按孩子查询课程/任务/积分',
+    parameters: { type: 'object', properties: {} },
+    needsConfirm: false,
+    summarize: () => '查询孩子列表',
+    execute: async (ctx) => {
+        if (ctx.role !== 'admin')
+            throw new Error('仅管理员可以查看孩子列表');
+        const users = await prisma_1.prisma.user.findMany({
+            where: { role: { not: 'admin' } },
+            select: { id: true, name: true, username: true, points: true },
+            orderBy: { createdAt: 'asc' }
+        });
+        return {
+            count: users.length,
+            children: users.map((u) => ({ id: u.id, name: u.name, username: u.username, points: u.points }))
+        };
+    }
+};
 const allTools = [
+    listChildren,
     listSchedules,
     createSchedules,
     updateSchedule,
