@@ -11,6 +11,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const prisma_1 = require("../utils/prisma");
 const jwt_1 = require("../utils/jwt");
 const auth_1 = require("../middleware/auth");
+const wxNotice_1 = require("../services/wxNotice");
 // ---------- familyScope：JWT → user → familyId → ctx.state.family ----------
 const familyScope = async (ctx, next) => {
     const authHeader = ctx.headers.authorization;
@@ -139,6 +140,37 @@ function v2Routes(router) {
         }
         const family = await prisma_1.prisma.family.update({ where: { id: ctx.state.family.id }, data: { name: trimmed } });
         ctx.body = { code: 0, message: 'ok', data: { family } };
+    });
+    // 上报订阅授权：wx.login code + requestSubscribeMessage accept 次数
+    router.post('/v2/notify/subscribe', auth_1.authMiddleware, async (ctx) => {
+        const userId = ctx.state.user.userId;
+        const { code, quota } = ctx.request.body;
+        const data = {};
+        if (code) {
+            const openid = await (0, wxNotice_1.codeToOpenid)(code);
+            if (openid)
+                data.openid = openid;
+        }
+        if (quota && quota > 0)
+            data.msgQuota = { increment: Math.min(quota, 10) };
+        if (Object.keys(data).length === 0) {
+            ctx.body = { code: 0, message: 'nothing to update', data: null };
+            return;
+        }
+        await prisma_1.prisma.user.update({ where: { id: userId }, data });
+        ctx.body = { code: 0, message: 'ok', data: null };
+    });
+    // 上课提醒设置（开关+提前分钟）
+    router.post('/v2/notify/settings', auth_1.authMiddleware, async (ctx) => {
+        const userId = ctx.state.user.userId;
+        const { enabled, remindMinutes } = ctx.request.body;
+        const data = {};
+        if (typeof enabled === 'boolean')
+            data.notifyEnabled = enabled;
+        if (typeof remindMinutes === 'number' && remindMinutes >= 5 && remindMinutes <= 120)
+            data.remindMinutes = Math.round(remindMinutes);
+        await prisma_1.prisma.user.update({ where: { id: userId }, data });
+        ctx.body = { code: 0, message: 'ok', data: null };
     });
     // 加入家庭（无家庭用户，填邀请码）
     router.post('/v2/family/join', auth_1.authMiddleware, async (ctx) => {

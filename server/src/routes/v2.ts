@@ -5,6 +5,7 @@ import { Context, Next } from 'koa'
 import { prisma } from '../utils/prisma'
 import { generateToken, verifyToken, TokenPayload } from '../utils/jwt'
 import { authMiddleware } from '../middleware/auth'
+import { codeToOpenid } from '../services/wxNotice'
 
 // ---------- familyScope：JWT → user → familyId → ctx.state.family ----------
 export const familyScope = async (ctx: Context, next: Next) => {
@@ -142,6 +143,32 @@ export function v2Routes(router: Router) {
     }
     const family = await prisma.family.update({ where: { id: ctx.state.family.id }, data: { name: trimmed } })
     ctx.body = { code: 0, message: 'ok', data: { family } }
+  })
+
+  // 上报订阅授权：wx.login code + requestSubscribeMessage accept 次数
+  router.post('/v2/notify/subscribe', authMiddleware, async (ctx) => {
+    const userId = (ctx.state.user as TokenPayload).userId as string
+    const { code, quota } = ctx.request.body as { code?: string; quota?: number }
+    const data: any = {}
+    if (code) {
+      const openid = await codeToOpenid(code)
+      if (openid) data.openid = openid
+    }
+    if (quota && quota > 0) data.msgQuota = { increment: Math.min(quota, 10) }
+    if (Object.keys(data).length === 0) { ctx.body = { code: 0, message: 'nothing to update', data: null }; return }
+    await prisma.user.update({ where: { id: userId }, data })
+    ctx.body = { code: 0, message: 'ok', data: null }
+  })
+
+  // 上课提醒设置（开关+提前分钟）
+  router.post('/v2/notify/settings', authMiddleware, async (ctx) => {
+    const userId = (ctx.state.user as TokenPayload).userId as string
+    const { enabled, remindMinutes } = ctx.request.body as { enabled?: boolean; remindMinutes?: number }
+    const data: any = {}
+    if (typeof enabled === 'boolean') data.notifyEnabled = enabled
+    if (typeof remindMinutes === 'number' && remindMinutes >= 5 && remindMinutes <= 120) data.remindMinutes = Math.round(remindMinutes)
+    await prisma.user.update({ where: { id: userId }, data })
+    ctx.body = { code: 0, message: 'ok', data: null }
   })
 
   // 加入家庭（无家庭用户，填邀请码）

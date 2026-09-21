@@ -50,6 +50,11 @@ model User {
   phone     String?
   points    Int      @default(0)  // 积分（用于抽卡）
   familyId  String?  // admin/parent 必有；预留 null
+  openid       String?  // 微信小程序 openid（订阅消息用）
+  notifyEnabled Boolean @default(false)  // 上课提醒开关
+  remindMinutes Int     @default(30)    // 课前提前多少分钟提醒
+  msgQuota      Int     @default(0)     // 订阅消息剩余额度（点一次允许+1，发一条-1）
+  lastNotifyDate String? // 最近一次发过当日汇总提醒的日期(yyyy-mm-dd)，一天只发一条
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   family    Family?  @relation(fields: [familyId], references: [id])

@@ -80,3 +80,11 @@ export function deleteSchedule(id: string) {
 export function getUsers() {
   return request<Array<{ id: string; username: string; name?: string; avatar?: string; role: string }>>({ url: '/users' })
 }
+
+export function subscribeNotify(code: string, quota: number) {
+  return request({ url: '/v2/notify/subscribe', method: 'POST', data: { code, quota } })
+}
+
+export function setNotifySettings(enabled: boolean, remindMinutes?: number) {
+  return request({ url: '/v2/notify/settings', method: 'POST', data: { enabled, remindMinutes } })
+}

@@ -40,10 +40,12 @@ const koa_1 = __importDefault(require("koa"));
 const routes_1 = require("./routes");
 const errorHandler_1 = require("./middleware/errorHandler");
 const dailyTask_1 = require("./cron/dailyTask");
+const classRemind_1 = require("./cron/classRemind");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const app = new koa_1.default();
 (0, dailyTask_1.startDailyTaskCron)();
+(0, classRemind_1.startClassRemindCron)();
 // 启动时自动补齐今天的任务（防止 cron 00:15 时机器关机/休眠导致漏生成）
 (0, dailyTask_1.generateDailyTasks)().catch(e => console.error('[Startup] Failed to backfill today tasks:', e));
 app.use(async (ctx, next) => {

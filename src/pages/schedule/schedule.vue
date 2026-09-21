@@ -1,6 +1,14 @@
 <template>
   <view class="container">
     <CommonHeader title="课程表" :show-add-btn="true" :show-week-btn="true" @add="showAddModal" @week="goToToday" />
+
+    <view class="remind-bar" @click="toggleRemind">
+      <text class="remind-label">{{ remindEnabled ? '🔔 上课提醒已开启（提前30分钟）' : '🔕 上课提醒已关闭' }}</text>
+      <view class="remind-switch" :class="{ on: remindEnabled }">
+        <view class="remind-dot" />
+      </view>
+    </view>
+
     <FilterBar :is-admin="isAdmin" />
 
     <view class="week-selector">
@@ -225,6 +233,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import { subscribeNotify, setNotifySettings } from '@/api/schedule'
 import CommonHeader from '@/components/CommonHeader.vue'
 import FilterBar from '@/components/FilterBar.vue'
 import { getV2Schedules, createV2Schedule, updateV2Schedule, deleteV2Schedule, type ScheduleV2 } from '@/api/family'
@@ -579,6 +588,53 @@ const saveSchedule = async () => {
   }
 }
 
+const remindEnabled = ref(uni.getStorageSync('notifyEnabled') === '1')
+
+const renewQuota = async () => {
+  // 静默续额度：用户勾过「总是保持以上选择」时不弹窗直接+1
+  uni.login({
+    success: async (lr: any) => {
+      uni.requestSubscribeMessage({
+        tmplIds: ['CLASS_REMIND_TMPL'],
+        success: async (res: any) => {
+          if (res['CLASS_REMIND_TMPL'] === 'accept') {
+            try { await subscribeNotify(lr.code, 1) } catch (e) {}
+          }
+        },
+        fail: () => {}
+      })
+    }
+  })
+}
+
+const toggleRemind = () => {
+  const target = !remindEnabled.value
+  if (!target) {
+    remindEnabled.value = false
+    uni.setStorageSync('notifyEnabled', '0')
+    setNotifySettings(false).catch(() => {})
+    return
+  }
+  uni.login({
+    success: async (lr: any) => {
+      uni.requestSubscribeMessage({
+        tmplIds: ['CLASS_REMIND_TMPL'],
+        success: async (res: any) => {
+          if (res['CLASS_REMIND_TMPL'] === 'accept') {
+            remindEnabled.value = true
+            uni.setStorageSync('notifyEnabled', '1')
+            try {
+              await subscribeNotify(lr.code, 1)
+              await setNotifySettings(true, 30)
+              uni.showToast({ title: '已开启上课提醒', icon: 'success' })
+            } catch (e) {}
+          }
+        }
+      })
+    }
+  })
+}
+
 onMounted(() => {
   currentWeekStart.value = getMonday(new Date())
   loadUserInfo()
@@ -605,6 +661,41 @@ watch(selectedChildIds, () => {
   padding: 20rpx;
 }
 
+.remind-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12rpx 24rpx 0;
+  padding: 16rpx 24rpx;
+  background: #ffffff;
+  border-radius: 14rpx;
+}
+.remind-label {
+  font-size: 26rpx;
+  color: #333333;
+}
+.remind-switch {
+  width: 84rpx;
+  height: 44rpx;
+  border-radius: 22rpx;
+  background: #d5d9e2;
+  padding: 4rpx;
+  box-sizing: border-box;
+  transition: background 0.2s;
+}
+.remind-switch.on {
+  background: #4a7cf7;
+}
+.remind-dot {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.2s;
+}
+.remind-switch.on .remind-dot {
+  transform: translateX(40rpx);
+}
 .week-selector {
   display: flex;
   align-items: center;

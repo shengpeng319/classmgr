@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
+import { subscribeNotify } from '@/api/schedule'
 
 onLaunch(() => {
   // #ifdef MP-WEIXIN
@@ -10,6 +11,24 @@ onLaunch(() => {
 
 onShow(() => {
   console.log('App Show')
+  // 上课提醒开启时，每次回到小程序静默续订阅额度（勾过「总是保持」则无感+1）
+  // #ifdef MP-WEIXIN
+  if (uni.getStorageSync('notifyEnabled') === '1') {
+    uni.login({
+      success: (lr: any) => {
+        uni.requestSubscribeMessage({
+          tmplIds: ['CLASS_REMIND_TMPL'],
+          success: (res: any) => {
+            if (res['CLASS_REMIND_TMPL'] === 'accept') {
+              subscribeNotify(lr.code, 1).catch(() => {})
+            }
+          },
+          fail: () => {}
+        })
+      }
+    })
+  }
+  // #endif
 })
 
 onHide(() => {

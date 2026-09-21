@@ -1,0 +1,1 @@
+"use strict";const t=require("../utils/request.js");exports.setNotifySettings=function(e,s){return t.request({url:"/v2/notify/settings",method:"POST",data:{enabled:e,remindMinutes:s}})},exports.subscribeNotify=function(e,s){return t.request({url:"/v2/notify/subscribe",method:"POST",data:{code:e,quota:s}})};

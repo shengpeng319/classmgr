@@ -2,12 +2,14 @@ import Koa from 'koa'
 import { router } from './routes'
 import { errorHandler } from './middleware/errorHandler'
 import { startDailyTaskCron, generateDailyTasks } from './cron/dailyTask'
+import { startClassRemindCron } from './cron/classRemind'
 import * as fs from 'fs'
 import * as path from 'path'
 
 const app = new Koa()
 
 startDailyTaskCron()
+startClassRemindCron()
 
 // 启动时自动补齐今天的任务（防止 cron 00:15 时机器关机/休眠导致漏生成）
 generateDailyTasks().catch(e => console.error('[Startup] Failed to backfill today tasks:', e))
