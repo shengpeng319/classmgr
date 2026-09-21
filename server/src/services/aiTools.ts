@@ -105,7 +105,7 @@ async function resolveReadTargets(ctx: AIContext, args: any): Promise<Array<{ us
     return [t]
   }
   const children = await prisma.user.findMany({
-    where: { role: { not: 'admin' } },
+    where: { role: { not: 'admin' }, name: { not: null } },
     select: { id: true, name: true, username: true },
     orderBy: { createdAt: 'asc' }
   })
