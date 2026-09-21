@@ -1,6 +1,4 @@
 {
-  "navigationStyle": "custom",
-  "usingComponents": {
-    "common-header": "../../components/CommonHeader"
-  }
+  "navigationBarTitleText": "家庭管理",
+  "usingComponents": {}
 }

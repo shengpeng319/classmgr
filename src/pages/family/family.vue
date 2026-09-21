@@ -1,7 +1,5 @@
 <template>
   <view class="page">
-    <CommonHeader title="家庭管理" />
-
     <!-- 家庭名 -->
     <view class="card">
       <text class="card-title">家庭名</text>
@@ -55,7 +53,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import CommonHeader from '@/components/CommonHeader.vue'
 import { getV2Family, renameV2Family, regenInviteCode } from '@/api/family'
 
 interface Member { id: string; username: string; name: string | null; avatar: string | null; role: string }

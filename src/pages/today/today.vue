@@ -1,6 +1,6 @@
 <template>
   <view class="container">
-    <CommonHeader :title="pageTitle" :show-nav="false" :show-add-btn="true" :show-import-btn="true" @add="showAddModal" @import="handleImport" />
+    <CommonHeader :title="pageTitle" :show-add-btn="true" :show-import-btn="true" @add="showAddModal" @import="handleImport" />
     <FilterBar :is-admin="isAdmin" />
 
     <view class="task-list">
