@@ -100,17 +100,33 @@ function parseReply(text: string): { text: string; options: string[] } {
   return { text: t, options: [] }
 }
 
+// 内存任务表：异步 AI 聊天（callContainer 15s 硬超时 → 提交/轮询两段式）
+interface AIJob {
+  id: string
+  userId: string
+  status: 'running' | 'done' | 'error'
+  result?: any
+  error?: string
+  createdAt: number
+}
+const aiJobs = new Map<string, AIJob>()
+// ponytail: 内存表，单实例部署没问题；多实例时换 Redis 或落库
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60 * 1000
+  for (const [id, j] of aiJobs) if (j.createdAt < cutoff) aiJobs.delete(id)
+}, 60 * 1000).unref()
+
 export function aiRoutes(router: Router) {
   router.post('/ai/chat', authMiddleware, async (ctx) => {
     const user = ctx.state.user as TokenPayload
-    const body = (ctx.request.body || {}) as { messages?: any; image?: any }
+    const body = (ctx.request.body || {}) as { messages?: any; image?: any; wait?: boolean }
 
-    try {
+    const runChat = async (): Promise<any> => {
+      try {
       const history = sanitizeHistory(body.messages)
       const image = normalizeImage(body.image)
       if (!image && history.length === 0) {
-        ctx.body = { code: 1, message: '请输入内容或上传图片', data: null }
-        return
+        return { code: 1, message: '请输入内容或上传图片', data: null }
       }
 
       // ① 图片先走视觉模型，识别结果作为文本上下文进入 Agent 循环
@@ -223,15 +239,57 @@ export function aiRoutes(router: Router) {
         }
       }
 
-      ctx.body = { code: 0, message: 'ok', data: { ...reply, confirmId } }
+      return { code: 0, message: 'ok', data: { ...reply, confirmId } }
     } catch (e: any) {
       if (e instanceof AIConfigError) {
-        ctx.body = { code: 1, message: e.message, data: null }
-        return
+        return { code: 1, message: e.message, data: null }
       }
       console.error('[AI] chat error:', e)
-      ctx.body = { code: 1, message: `AI 服务调用失败：${e.message || '未知错误'}`, data: null }
+      return { code: 1, message: `AI 服务调用失败：${e.message || '未知错误'}`, data: null }
     }
+  }
+
+  // 同步模式（H5/开发者工具/直连场景）：?wait=1 或 body.wait=true 时直接等结果
+  if (body.wait) {
+    ctx.body = await runChat()
+    return
+  }
+
+  // 异步模式（小程序正式版）：立即返回 jobId，前端轮询 /ai/result
+  const job: AIJob = {
+    id: `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId: user.userId,
+    status: 'running',
+    createdAt: Date.now()
+  }
+  aiJobs.set(job.id, job)
+  runChat()
+    .then((r) => {
+      job.status = r.code === 0 ? 'done' : 'error'
+      job.result = r
+      if (r.code !== 0) job.error = r.message
+    })
+    .catch((e) => {
+      job.status = 'error'
+      job.error = e.message || '未知错误'
+    })
+  ctx.body = { code: 0, message: 'ok', data: { jobId: job.id } }
+  })
+
+  // 轮询任务结果
+  router.get('/ai/result/:jobId', authMiddleware, async (ctx) => {
+    const user = ctx.state.user as TokenPayload
+    const job = aiJobs.get(String(ctx.params.jobId))
+    if (!job || job.userId !== user.userId) {
+      ctx.body = { code: 1, message: '任务不存在或已过期', data: null }
+      return
+    }
+    if (job.status === 'running') {
+      ctx.body = { code: 0, message: 'ok', data: { status: 'running' } }
+      return
+    }
+    aiJobs.delete(job.id)
+    ctx.body = { code: 0, message: 'ok', data: { status: job.status, ...(job.result?.data || {}), message: job.error } }
   })
 
   router.post('/ai/confirm', authMiddleware, async (ctx) => {
