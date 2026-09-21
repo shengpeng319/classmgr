@@ -1,7 +1,5 @@
 {
   "pages": [
-    "pages/family/family",
-    "pages/children/children",
     "pages/login/login",
     "pages/index/index",
     "pages/today/today",
@@ -12,7 +10,9 @@
     "pages/points/points",
     "pages/user/user",
     "pages/profile/profile",
-    "pages/points-manage/points-manage"
+    "pages/points-manage/points-manage",
+    "pages/family/family",
+    "pages/children/children"
   ],
   "window": {
     "navigationBarTextStyle": "white",

@@ -6,8 +6,6 @@
     }
   },
   "pages": [
-    { "path": "pages/family/family", "style": { "navigationStyle": "custom" } },
-    { "path": "pages/children/children", "style": { "navigationStyle": "custom" } },
     {
       "path": "pages/login/login",
       "style": {
@@ -80,7 +78,9 @@
       "style": {
         "navigationStyle": "custom"
       }
-    }
+    },
+    { "path": "pages/family/family", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/children/children", "style": { "navigationStyle": "custom" } }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "white",
