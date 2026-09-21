@@ -405,7 +405,7 @@ const loadItemsFromServer = async () => {
 }
 
 const goBack = () => {
-  uni.navigateBack()
+  uni.navigateBack({ fail: () => uni.reLaunch({ url: '/pages/index/index' }) })
 }
 
 const submit = async () => {

@@ -1,6 +1,14 @@
 <template>
   <view class="header" :style="{ paddingTop: headerTop + 'px' }">
     <view class="header-left">
+      <view class="nav-btns" v-if="showNav">
+        <view class="nav-btn" @click="goBack">
+          <text class="nav-btn-text">‹</text>
+        </view>
+        <view class="nav-btn" @click="goHome">
+          <text class="nav-btn-text">⌂</text>
+        </view>
+      </view>
       <text class="title" v-if="title">{{ title }}</text>
       <view class="add-btn" v-if="showAddBtn && isAdmin" @click="$emit('add')">
         <text class="add-btn-text">+ 添加</text>
@@ -73,13 +81,21 @@
 import { ref, onMounted } from 'vue'
 import { HEADER_TOP, CAPSULE_RIGHT } from '@/utils/layout'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   title?: string
   showAddBtn?: boolean
   showWeekBtn?: boolean
   showImportBtn?: boolean
   showManageBtn?: boolean
-}>()
+  showNav?: boolean
+}>(), { showNav: true })
+const goBack = () => {
+  uni.navigateBack({
+    fail: () => uni.reLaunch({ url: '/pages/index/index' })
+  })
+}
+const goHome = () => uni.reLaunch({ url: '/pages/index/index' })
+
 const emit = defineEmits<{
   add: []
   week: []
@@ -420,5 +436,25 @@ onMounted(() => {
 .manage-menu-divider {
   height: 1rpx;
   background: #F0F0F0;
+}
+
+.nav-btns {
+  display: flex;
+  gap: 12rpx;
+  margin-right: 16rpx;
+}
+.nav-btn {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-btn-text {
+  font-size: 34rpx;
+  color: #fff;
+  line-height: 1;
 }
 </style>
