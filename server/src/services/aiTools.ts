@@ -257,6 +257,48 @@ const createSchedules: AITool = {
   }
 }
 
+const createTask: AITool = {
+  name: 'create_task',
+  description:
+    '新增某一天的一次性任务（如"明天写作业"、"周日打扫房间"）。这与 create_schedules 不同：任务是单次事项，不重复，当天可勾选完成得积分。参数：title、date(YYYY-MM-DD，"明天"等需换算成具体日期)、type(school|tutoring|homework|sports|art|other)、points(积分，默认5)。管理员可用 childName 指定孩子',
+  parameters: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: '任务名称，如 写作业' },
+      date: { type: 'string', description: 'YYYY-MM-DD，任务在哪天，"今天/明天/周日"必须换算成具体日期' },
+      type: { type: 'string', enum: SCHEDULE_TYPES },
+      points: { type: 'number', description: '完成后得积分，默认5' },
+      childName: { type: 'string', description: '（仅管理员）孩子姓名' }
+    },
+    required: ['title', 'date']
+  },
+  needsConfirm: true,
+  summarize: (args) => `新增任务：${args?.title}（${args?.date}）`,
+  execute: async (ctx, args) => {
+    const target = await resolveTargetUser(ctx, args)
+    const date = String(args?.date || '')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('date 必须是 YYYY-MM-DD 格式，请把"明天/周几"换算成具体日期')
+    const title = String(args?.title || '').trim()
+    if (!title) throw new Error('任务名称不能为空')
+    // 任务同时写 userId（旧列）与 childId（新模型）；孩子名 → Child 档案
+    let childId: string | null = null
+    const child = await prisma.child.findFirst({ where: { name: { contains: target.userName }, familyId: (await prisma.user.findUnique({ where: { id: target.userId }, select: { familyId: true } }))?.familyId ?? undefined } })
+    if (child) childId = child.id
+    const task = await prisma.task.create({
+      data: {
+        userId: target.userId,
+        childId: childId ?? undefined,
+        title,
+        type: SCHEDULE_TYPES.includes(args?.type) ? args.type : 'other',
+        points: Number(args?.points) > 0 ? Number(args.points) : 5,
+        startDate: toDateStart(date),
+        endDate: toDateEnd(date)
+      }
+    })
+    return { success: true, taskId: task.id, owner: target.userName, title, date, points: task.points }
+  }
+}
+
 const updateSchedule: AITool = {
   name: 'update_schedule',
   description:
@@ -358,7 +400,7 @@ const deleteSchedule: AITool = {
 
 const listTasks: AITool = {
   name: 'list_tasks',
-  description: '查询某一天的当日任务列表（由长期课程/待办按天生成，含完成状态），默认今天。注意：这与 schedule（每周重复的长期课程）是两个不同概念——问「有什么课/课程安排」请用 list_schedules，不要用这个。管理员可用 childName 指定孩子，缺省查自己',
+  description: '查询某一天的当日任务列表（一次性事项，可勾选完成得积分；由系统每天从课程模板自动生成），默认今天。schedule=每周重复的课程模板（不能完成）；task=某天的一次性任务（能完成）。问「有什么课/每周几上什么」用 list_schedules；只有问「任务/要做的事/待完成」才用本工具。管理员可用 childName 指定孩子，缺省查自己',
   parameters: {
     type: 'object',
     properties: {
@@ -611,6 +653,7 @@ const allTools: AITool[] = [
   updateSchedule,
   deleteSchedule,
   listTasks,
+  createTask,
   completeTask,
   listPointRecords,
   getPoints,
