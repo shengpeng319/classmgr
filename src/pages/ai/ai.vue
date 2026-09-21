@@ -81,7 +81,11 @@ interface ChatDisplayMessage {
   options?: string[]
   confirmId?: string
   image?: string
+  ts: number
 }
+
+// 超过 1 小时的消息不再发给 AI（省 token），本地仍显示
+const CONTEXT_TTL = 60 * 60 * 1000
 
 const chatMessages = ref<ChatDisplayMessage[]>([])
 const inputText = ref('')
@@ -111,6 +115,7 @@ async function send() {
 
   clearStaleInteractions()
   chatMessages.value.push({
+    ts: Date.now(),
     role: 'user',
     text: text || '请识别这张课表图片',
     image: image?.preview
@@ -122,11 +127,13 @@ async function send() {
 
   try {
     const history: AIChatMessage[] = chatMessages.value
+      .filter((m) => Date.now() - m.ts < CONTEXT_TTL)
       .slice(-20)
       .map((m) => ({ role: m.role, content: m.text }))
     const res = await aiChat(history, image?.base64)
     if (res.code === 0 && res.data) {
       chatMessages.value.push({
+        ts: Date.now(),
         role: 'assistant',
         text: res.data.text,
         options: res.data.options || [],
@@ -134,12 +141,14 @@ async function send() {
       })
     } else {
       chatMessages.value.push({
+        ts: Date.now(),
         role: 'assistant',
         text: res.message || 'AI 服务暂时不可用，请稍后再试。'
       })
     }
   } catch (e: any) {
     chatMessages.value.push({
+      ts: Date.now(),
       role: 'assistant',
       text: e?.message || '网络错误，请稍后再试。'
     })
@@ -157,11 +166,13 @@ async function doConfirm(confirmId: string) {
   try {
     const res = await aiConfirm(confirmId)
     chatMessages.value.push({
+      ts: Date.now(),
       role: 'assistant',
       text: res.code === 0 && res.data ? res.data.text : res.message || '执行失败，请重试。'
     })
   } catch (e: any) {
     chatMessages.value.push({
+      ts: Date.now(),
       role: 'assistant',
       text: e?.message || '网络错误，请稍后再试。'
     })
