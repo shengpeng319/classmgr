@@ -213,3 +213,11 @@ export function drawV2Card(childId: string, pointsCost?: number) {
     data: { childId, pointsCost }
   })
 }
+
+export function renameV2Family(name: string) {
+  return request<Family>({ url: '/v2/family', method: 'PATCH', data: { name } })
+}
+
+export function regenInviteCode() {
+  return request<{ inviteCode: string }>({ url: '/v2/family/invite-code', method: 'POST' })
+}

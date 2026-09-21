@@ -98,6 +98,10 @@
           <text class="label">密码</text>
           <input class="input" v-model="regData.password" type="password" placeholder="请输入密码（至少6位）" placeholder-class="placeholder" />
         </view>
+        <view class="input-group">
+          <text class="label">邀请码（选填）</text>
+          <input class="input" v-model="regData.inviteCode" placeholder="有家人邀请码则填，直接加入TA的家庭" placeholder-class="placeholder" />
+        </view>
         <view class="error" v-if="regError">
           <text class="error-text">{{ regError }}</text>
         </view>
@@ -139,7 +143,7 @@ const currentUserId = ref('')
 const showRegister = ref(false)
 const regLoading = ref(false)
 const regError = ref('')
-const regData = ref({ username: '', password: '' })
+const regData = ref({ username: '', password: '', inviteCode: '' })
 
 // v2: 登录/注册成功后预热 familyStore（拉 /v2/family）
 const warmFamily = async () => {

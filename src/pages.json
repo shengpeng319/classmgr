@@ -6,6 +6,7 @@
     }
   },
   "pages": [
+    { "path": "pages/family/family", "style": { "navigationBarTitleText": "家庭管理" } },
     { "path": "pages/children/children", "style": { "navigationBarTitleText": "孩子信息" } },
     {
       "path": "pages/login/login",

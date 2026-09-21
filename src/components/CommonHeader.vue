@@ -52,6 +52,9 @@
         <view class="menu-item" @click="goToChildren">
           <text class="menu-item-text">孩子信息</text>
         </view>
+        <view class="menu-item" @click="goToFamily">
+          <text class="menu-item-text">家庭管理</text>
+        </view>
         <view class="menu-item" @click="switchUser">
           <text class="menu-item-text">切换用户</text>
         </view>
@@ -115,6 +118,11 @@ const loadUserInfo = () => {
 const goToChildren = () => {
   showMenu.value = false
   uni.navigateTo({ url: '/pages/children/children' })
+}
+
+const goToFamily = () => {
+  showMenu.value = false
+  uni.navigateTo({ url: '/pages/family/family' })
 }
 
 const toggleMenu = () => {

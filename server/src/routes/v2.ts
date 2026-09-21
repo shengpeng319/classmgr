@@ -63,10 +63,11 @@ export async function childInScope(ctx: Context, childId: string) {
 export function v2Routes(router: Router) {
   // ---------- 注册（开放，不走 familyScope）----------
   router.post('/v2/auth/register', async (ctx) => {
-    const { username, password, name } = ctx.request.body as {
+    const { username, password, name, inviteCode } = ctx.request.body as {
       username: string
       password: string
       name?: string
+      inviteCode?: string
     }
     if (!username || !password) {
       ctx.status = 400
@@ -80,9 +81,19 @@ export function v2Routes(router: Router) {
       return
     }
     const hashed = await bcrypt.hash(password, 10)
-    const family = await prisma.family.create({
-      data: { name: name ? `${name}家` : `${username}家` },
-    })
+    let family
+    if (inviteCode && inviteCode.trim()) {
+      family = await prisma.family.findUnique({ where: { inviteCode: inviteCode.trim().toUpperCase() } })
+      if (!family) {
+        ctx.status = 400
+        ctx.body = { code: 400, message: '邀请码无效', data: null }
+        return
+      }
+    } else {
+      family = await prisma.family.create({
+        data: { name: name ? `${name}家` : `${username}家`, inviteCode: genInviteCode() },
+      })
+    }
     const user = await prisma.user.create({
       data: {
         username,
@@ -111,7 +122,42 @@ export function v2Routes(router: Router) {
       where: { familyId: family.id },
       orderBy: { createdAt: 'asc' },
     })
-    ctx.body = { code: 0, message: 'ok', data: { family, children } }
+    const members = await prisma.user.findMany({
+      where: { familyId: family.id },
+      select: { id: true, username: true, name: true, avatar: true, role: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    })
+    ctx.body = { code: 0, message: 'ok', data: { family, children, members } }
+  })
+
+  // 改家庭名（本家庭成员均可）
+  router.patch('/v2/family', familyScope, async (ctx) => {
+    const { name } = ctx.request.body as { name?: string }
+    const trimmed = (name || '').trim()
+    if (!trimmed) {
+      ctx.status = 400
+      ctx.body = { code: 400, message: '家庭名不能为空', data: null }
+      return
+    }
+    const family = await prisma.family.update({ where: { id: ctx.state.family.id }, data: { name: trimmed } })
+    ctx.body = { code: 0, message: 'ok', data: { family } }
+  })
+
+  // 重新生成邀请码
+  router.post('/v2/family/invite-code', familyScope, async (ctx) => {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+    let code = ''
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
+    try {
+      const family = await prisma.family.update({ where: { id: ctx.state.family.id }, data: { inviteCode: code } })
+      ctx.body = { code: 0, message: 'ok', data: { inviteCode: family.inviteCode } }
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        ctx.body = { code: 0, message: 'ok', data: { inviteCode: (ctx.state.family as any).inviteCode } }
+        return
+      }
+      throw e
+    }
   })
 
   // ---------- children CRUD ----------
@@ -417,4 +463,11 @@ export async function blockMigratedChildLogin(ctx: Context, next: Next) {
     }
   }
   await next()
+}
+
+function genInviteCode(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+  let c = ''
+  for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)]
+  return c
 }

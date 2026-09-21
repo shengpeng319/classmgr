@@ -9,12 +9,13 @@ datasource db {
 }
 
 model Family {
-  id        String   @id @default(uuid())
-  name      String   // 家庭名称，默认"XX家"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
-  children  Child[]
+  id         String   @id @default(uuid())
+  name       String   // 家庭名称，默认"XX家"
+  inviteCode String   @default("") @unique // 6位邀请码，家庭成员展示给新家长加入
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  users      User[]
+  children   Child[]
 }
 
 model Child {
