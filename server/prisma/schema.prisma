@@ -4,11 +4,7 @@ generator client {
 }
 
 datasource db {
-  // 本地开发用 sqlite；部署到云托管 MySQL 时只需：
-  // 1. 把 provider 改为 "mysql"
-  // 2. 设置环境变量 DATABASE_URL 为 MySQL 连接串（如 mysql://user:***@host:3306/classmgr）
-  // schema 的 model 定义对 sqlite/mysql 均兼容，无需改动
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
