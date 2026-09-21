@@ -70,12 +70,23 @@ function normalizeScheduleList(args: any): any[] {
  * 普通用户一律查自己（不信任模型传参）。
  * ponytail: childName 需唯一匹配，歧义时报错列出候选；孩子多了再考虑精确 id 传参。
  */
-async function resolveTargetUser(ctx: AIContext, args: any): Promise<{ userId: string; userName: string }> {
+async function resolveTargetUser(ctx: AIContext, args: any): Promise<{ userId: string; userName: string; childId?: string }> {
   if (ctx.role !== 'admin' || !args?.childName) {
     const self = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, username: true } })
     return { userId: ctx.userId, userName: self?.name || self?.username || ctx.username }
   }
   const kw = String(args.childName).trim()
+  // 新模型：孩子=Child 档案；old 数据 fallback User 表
+  const me = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { familyId: true } })
+  if (me?.familyId) {
+    const kids = await prisma.child.findMany({ where: { familyId: me.familyId, name: { contains: kw } } })
+    if (kids.length === 1) {
+      return { userId: ctx.userId, userName: kids[0].name, childId: kids[0].id }
+    }
+    if (kids.length > 1) {
+      throw new Error(`「${kw}」匹配到多个孩子：${kids.map((c) => c.name).join('、')}，请说得更具体些`)
+    }
+  }
   const candidates = await prisma.user.findMany({
     where: {
       role: { not: 'admin' },
@@ -205,7 +216,8 @@ const createSchedules: AITool = {
             endDate: { type: 'string', description: 'YYYY-MM-DD' }
           },
           required: ['name', 'dayOfWeek', 'startTime', 'endTime', 'type']
-        }
+        },
+        childName: { type: 'string', description: '（仅管理员）孩子姓名，课程归属谁' }
       }
     },
     required: ['schedules']
@@ -225,8 +237,14 @@ const createSchedules: AITool = {
     const list = normalizeScheduleList(args)
     if (!list.length) throw new Error('没有可创建的课程')
 
+    // LLM 有时把 childName 放进 schedules[0] 而不是顶层——提升后统一解析
+    const topChildName = args?.childName || list.find((s: any) => s.childName)?.childName
+    const target = await resolveTargetUser(ctx, { ...args, childName: topChildName })
+    const childId: string | null = target.childId ?? null
+
     const data = list.map((s: any) => ({
-      userId: ctx.userId,
+      userId: target.userId,
+      childId: childId ?? undefined,
       name: String(s.name || '').trim(),
       dayOfWeek: String(s.dayOfWeek ?? '').trim(),
       startTime: String(s.startTime || '').trim(),
@@ -280,10 +298,8 @@ const createTask: AITool = {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('date 必须是 YYYY-MM-DD 格式，请把"明天/周几"换算成具体日期')
     const title = String(args?.title || '').trim()
     if (!title) throw new Error('任务名称不能为空')
-    // 任务同时写 userId（旧列）与 childId（新模型）；孩子名 → Child 档案
-    let childId: string | null = null
-    const child = await prisma.child.findFirst({ where: { name: { contains: target.userName }, familyId: (await prisma.user.findUnique({ where: { id: target.userId }, select: { familyId: true } }))?.familyId ?? undefined } })
-    if (child) childId = child.id
+    // 任务同时写 userId（旧列）与 childId（新模型）
+    const childId: string | null = target.childId ?? null
     const task = await prisma.task.create({
       data: {
         userId: target.userId,
