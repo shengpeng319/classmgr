@@ -1,8 +1,14 @@
 <template>
   <view class="page">
-    <view class="header">
-      <text class="family-name">{{ family?.name || '我的家庭' }}</text>
-      <text class="edit-name" @click="renameFamily">改名</text>
+    <CommonHeader title="家庭管理" />
+
+    <!-- 家庭名 -->
+    <view class="card">
+      <text class="card-title">家庭名</text>
+      <view class="name-row">
+        <text class="family-name">{{ family?.name || '我的家庭' }}</text>
+        <text class="edit-name" @click="renameFamily">改名</text>
+      </view>
     </view>
 
     <!-- 邀请码卡片 -->
@@ -49,6 +55,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import CommonHeader from '@/components/CommonHeader.vue'
 import { getV2Family, renameV2Family, regenInviteCode } from '@/api/family'
 
 interface Member { id: string; username: string; name: string | null; avatar: string | null; role: string }
@@ -131,14 +138,13 @@ const goChildren = () => uni.navigateTo({ url: '/pages/children/children' })
   font-size: 30rpx;
   color: #4a7cf7;
 }
-.header {
+.name-row {
   display: flex;
   align-items: center;
-  gap: 24rpx;
-  margin-bottom: 28rpx;
+  justify-content: space-between;
 }
 .family-name {
-  font-size: 40rpx;
+  font-size: 34rpx;
   font-weight: 700;
   color: #222;
 }

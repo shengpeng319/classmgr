@@ -47,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+import CommonHeader from '@/components/CommonHeader.vue'
 import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getV2Children, createV2Child, updateV2Child, deleteV2Child } from '@/api/family'
