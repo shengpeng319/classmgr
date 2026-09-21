@@ -49,6 +49,20 @@
           <text class="btn-text">保存修改</text>
         </button>
 
+        <view class="children-section">
+          <view class="children-header">
+            <text class="section-title">我的孩子</text>
+            <text class="add-child" @click="handleAddChild">＋ 添加</text>
+          </view>
+          <view v-if="children.length === 0" class="children-empty">
+            <text class="empty-text">还没有添加孩子</text>
+          </view>
+          <view v-for="child in children" :key="child.id" class="child-row">
+            <text class="child-name">{{ child.name }}</text>
+            <text class="child-points">{{ child.points }} 积分</text>
+          </view>
+        </view>
+
         <button class="logout-btn" @click="handleLogout">
           <text class="btn-text">退出登录</text>
         </button>
@@ -60,6 +74,41 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { request } from '@/utils/request'
+import { getV2Children, createV2Child } from '@/api/family'
+
+const children = ref<{ id: string; name: string; points: number }[]>([])
+
+const loadChildren = async () => {
+  try {
+    const res: any = await getV2Children()
+    children.value = res.data || []
+  } catch (e) {
+    console.error('load children failed', e)
+  }
+}
+
+const handleAddChild = () => {
+  uni.showModal({
+    title: '添加孩子',
+    editable: true,
+    placeholderText: '请输入孩子姓名',
+    success: async (res) => {
+      if (!res.confirm) return
+      const name = (res.content || '').trim()
+      if (!name) {
+        uni.showToast({ title: '名字不能为空', icon: 'none' })
+        return
+      }
+      try {
+        await createV2Child({ name })
+        uni.showToast({ title: '已添加', icon: 'success' })
+        loadChildren()
+      } catch (e: any) {
+        uni.showToast({ title: e.message || '添加失败', icon: 'none' })
+      }
+    }
+  })
+}
 
 const formData = ref({
   name: '',
@@ -334,10 +383,51 @@ const handleLogout = () => {
 onMounted(() => {
   loadProfile()
   loadProfileFromServer()
+  loadChildren()
 })
 </script>
 
 <style scoped>
+.children-section {
+  margin-top: 24rpx;
+  padding: 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+}
+.children-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+}
+.add-child {
+  font-size: 28rpx;
+  color: #4a90d9;
+}
+.children-empty {
+  padding: 20rpx 0;
+}
+.empty-text {
+  font-size: 26rpx;
+  color: #999;
+}
+.child-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 16rpx 0;
+}
+.child-name {
+  font-size: 28rpx;
+  color: #333;
+}
+.child-points {
+  font-size: 26rpx;
+  color: #f5a623;
+}
 .container {
   min-height: 100vh;
   background: linear-gradient(180deg, #87CEEB 0%, #B0E0E6 40%, #E0F7FA 70%, #FFF8E7 100%);
