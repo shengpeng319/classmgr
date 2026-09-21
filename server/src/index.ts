@@ -73,7 +73,7 @@ app.use(router.allowedMethods())
 
 app.use(async (ctx, next) => {
   if (ctx.path === '/health') {
-    ctx.body = { code: 0, message: 'ok', data: { status: 'running' } }
+    ctx.body = { code: 0, message: 'ok', data: { status: 'running', minSupportedVersion: '2.0.0' } }
     return
   }
   await next()

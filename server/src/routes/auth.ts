@@ -92,6 +92,14 @@ export function authRoutes(router: Router) {
       return
     }
 
+    // 多家庭改造：已迁移成 Child 档案的旧孩子账号，禁止登录
+    if (user.role === 'user' || (user.familyId && user.role === 'parent' &&
+      await prisma.child.findFirst({ where: { familyId: user.familyId, name: user.name || '' } }))) {
+      ctx.status = 403
+      ctx.body = { code: 403, message: '孩子账号已并入家庭档案，请用家长账号登录', data: null }
+      return
+    }
+
     const isValidPassword = await bcrypt.compare(password, user.password)
 
     if (!isValidPassword) {

@@ -10,6 +10,7 @@ import { taskRoutes } from './task'
 import { scheduleRoutes } from './schedule'
 import { presetPointItemRoutes } from './presetPointItem'
 import { aiRoutes } from './ai'
+import { v2Routes } from './v2'
 
 export const router = new Router({ prefix: '/api/classmgr' })
 
@@ -25,3 +26,4 @@ taskRoutes(router)
 scheduleRoutes(router)
 presetPointItemRoutes(router)
 aiRoutes(router)
+v2Routes(router)
