@@ -1,1 +1,1 @@
-"use strict";const r=require("../utils/request.js");exports.drawCard=function(){return r.request({url:"/lottery/draw",method:"POST"})},exports.getLotteryCards=function(){return r.request({url:"/lottery/cards"})},exports.getLotteryInfo=function(){return r.request({url:"/lottery/info"})},exports.getMyCards=function(){return r.request({url:"/lottery/my-cards"})};
+"use strict";const t=require("../utils/request.js");exports.getLotteryCards=function(){return t.request({url:"/lottery/cards"})};

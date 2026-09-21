@@ -1,14 +1,14 @@
 <template>
   <view class="container">
     <CommonHeader title="积分" :show-manage-btn="true" @manage-add-points="goToAddPoints" @manage-subtract-points="goToSubtractPoints" />
-    <UserSelector v-if="isAdmin" :users="regularUsers" v-model="selectedUserId" />
+    <UserSelector v-if="isAdmin && children.length > 0" :users="children" v-model="selectedChildId" />
     
     <view class="content">
       <view class="points-card">
         <view class="points-icon"><text class="points-star">★</text></view>
         <view class="points-info">
-          <text class="points-label">{{ selectedUserName }}</text>
-          <text class="points-value">{{ userInfo?.points ?? 0 }}</text>
+          <text class="points-label">{{ selectedChildName }}</text>
+          <text class="points-value">{{ points ?? 0 }}</text>
         </view>
       </view>
 
@@ -47,23 +47,24 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import CommonHeader from '@/components/CommonHeader.vue'
 import UserSelector from '@/components/UserSelector.vue'
-import { getLotteryInfo } from '@/api/lottery'
-import { getPointRecords, getAdminPointRecords, getAdminUserPoints, getUsers, type PointRecord } from '@/api/task'
+import { getV2ChildPoints, type PointRecordV2 } from '@/api/family'
+import { useFamilyStore } from '@/stores/family'
+import { storeToRefs } from 'pinia'
 import { usePagination } from '@/composables/usePagination'
 
+const familyStore = useFamilyStore()
+const { children } = storeToRefs(familyStore)
+
 const isAdmin = ref(false)
-const userId = ref('')
-const allUsers = ref<Array<{ id: string; username: string; name?: string; avatar?: string; role: string }>>([])
-const regularUsers = computed(() => allUsers.value.filter(u => u.role !== 'admin'))
 
-const selectedUserId = ref('')
-const userInfo = ref<{ id: string; name?: string; avatar?: string; points: number } | null>(null)
+const selectedChildId = ref('')
+const points = ref(0)
 
-const { displayedItems: records, hasMore, remainingCount, loadMore, setItems } = usePagination<PointRecord>()
+const { displayedItems: records, hasMore, remainingCount, loadMore, setItems } = usePagination<PointRecordV2>()
 
-const selectedUserName = computed(() => {
-  const user = regularUsers.value.find(u => u.id === selectedUserId.value)
-  return user?.name || user?.username || '我的积分'
+const selectedChildName = computed(() => {
+  const child = children.value.find(c => c.id === selectedChildId.value)
+  return child?.name || '我的积分'
 })
 
 const formatDate = (dateStr: string): string => {
@@ -73,112 +74,70 @@ const formatDate = (dateStr: string): string => {
 
 const loadUsers = async () => {
   try {
-    const res: any = await getUsers()
-    if (res.code === 0) {
-      allUsers.value = res.data || []
-      if (allUsers.value.length > 0 && !selectedUserId.value) {
-        selectedUserId.value = regularUsers.value[0]?.id || ''
-      }
+    await familyStore.refresh()
+    if (children.value.length > 0 && !selectedChildId.value) {
+      selectedChildId.value = children.value[0].id
     }
   } catch (e) {
-    console.error('Failed to load users', e)
+    console.error('Failed to load family', e)
   }
 }
 
-const loadUserPoints = async () => {
+const loadChildData = async () => {
+  if (!selectedChildId.value) return
   try {
-    if (isAdmin.value && selectedUserId.value) {
-      const res: any = await getAdminUserPoints(selectedUserId.value)
-      if (res.code === 0) {
-        userInfo.value = res.data
-      }
-    } else {
-      const res: any = await getLotteryInfo()
-      if (res.code === 0) {
-        userInfo.value = res.data
-      }
+    const res: any = await getV2ChildPoints(selectedChildId.value)
+    if (res.code === 0 && res.data) {
+      points.value = res.data.points ?? 0
+      setItems(res.data.records || [])
     }
   } catch (e) {
-    console.error('Failed to load user points', e)
+    console.error('Failed to load child points', e)
   }
 }
 
-const loadRecords = async () => {
-  try {
-    if (isAdmin.value && selectedUserId.value) {
-      const res: any = await getAdminPointRecords(selectedUserId.value)
-      if (res.code === 0) {
-        setItems(res.data || [])
-      }
-    } else {
-      const res: any = await getPointRecords()
-      if (res.code === 0) {
-        setItems(res.data || [])
-      }
-    }
-  } catch (e) {
-    console.error('Failed to load records', e)
-  }
-}
-
-watch(selectedUserId, () => {
-  if (isAdmin.value && selectedUserId.value) {
-    loadUserPoints()
-    loadRecords()
-  }
+watch(selectedChildId, () => {
+  loadChildData()
 })
 
 onShow(() => {
-  if (isAdmin.value) {
-    loadUsers().then(() => {
-      if (selectedUserId.value) {
-        loadUserPoints()
-        loadRecords()
-      }
-    })
-  } else {
-    loadUserPoints()
-    loadRecords()
-  }
+  loadUsers().then(() => {
+    loadChildData()
+  })
 })
 
 onMounted(() => {
   const userStr = uni.getStorageSync('user')
   if (userStr) {
     const user = JSON.parse(userStr)
-    isAdmin.value = user.role === 'admin'
-    userId.value = user.id || ''
+    // v2: 登录账号只有 parent/admin，均为管理者（孩子是档案不是账号）
+    isAdmin.value = user.role === 'admin' || user.role === 'parent'
   }
   loadUsers().then(() => {
-    if (!isAdmin.value && userId.value) {
-      selectedUserId.value = userId.value
-    }
-    loadUserPoints()
-    loadRecords()
+    loadChildData()
   })
 
-  uni.$on('taskUpdated', (data: { userId: string }) => {
-    if (isAdmin.value && selectedUserId.value === data.userId) {
-      loadUserPoints()
-      loadRecords()
+  uni.$on('taskUpdated', (data: { childId: string }) => {
+    if (selectedChildId.value === data.childId) {
+      loadChildData()
     }
   })
 })
 
 const goToAddPoints = () => {
-  const user = regularUsers.value.find(u => u.id === selectedUserId.value)
-  if (user) {
-    uni.navigateTo({ 
-      url: `/pages/points-manage/points-manage?mode=add&userId=${user.id}&userName=${encodeURIComponent(user.name || user.username)}` 
+  const child = children.value.find(c => c.id === selectedChildId.value)
+  if (child) {
+    uni.navigateTo({
+      url: `/pages/points-manage/points-manage?mode=add&childId=${child.id}&childName=${encodeURIComponent(child.name)}`
     })
   }
 }
 
 const goToSubtractPoints = () => {
-  const user = regularUsers.value.find(u => u.id === selectedUserId.value)
-  if (user) {
-    uni.navigateTo({ 
-      url: `/pages/points-manage/points-manage?mode=subtract&userId=${user.id}&userName=${encodeURIComponent(user.name || user.username)}` 
+  const child = children.value.find(c => c.id === selectedChildId.value)
+  if (child) {
+    uni.navigateTo({
+      url: `/pages/points-manage/points-manage?mode=subtract&childId=${child.id}&childName=${encodeURIComponent(child.name)}`
     })
   }
 }

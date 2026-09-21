@@ -2,9 +2,9 @@
   <view class="filter-bar" v-if="users.length > 0">
     <scroll-view scroll-x class="user-scroll">
       <view class="user-list">
-        <view 
-          class="user-avatar-item" 
-          v-for="user in users" 
+        <view
+          class="user-avatar-item"
+          v-for="user in users"
           :key="user.id"
           @click="handleSelect(user.id)"
         >
@@ -14,7 +14,7 @@
               <text class="check-icon">✓</text>
             </view>
           </view>
-          <text class="user-name">{{ user.name || user.username }}</text>
+          <text class="user-name">{{ user.name }}</text>
         </view>
       </view>
     </scroll-view>
@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 defineProps<{
-  users: Array<{ id: string; username: string; name?: string; avatar?: string; role: string }>
+  users: Array<{ id: string; name?: string; avatar?: string | null }>
   modelValue: string
 }>()
 

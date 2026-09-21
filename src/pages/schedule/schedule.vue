@@ -35,10 +35,10 @@
               <text class="time-text">{{ course.endTime }}</text>
             </view>
             <view class="course-info">
-              <view class="course-user" v-if="isAdmin && course.user">
-                <image class="user-avatar" v-if="course.user.avatar" :src="course.user.avatar" mode="aspectFill"></image>
-                <text class="user-avatar-placeholder" v-else>{{ course.user.name?.charAt(0) || '?' }}</text>
-                <text class="user-name">{{ course.user.name || '未知用户' }}</text>
+              <view class="course-user" v-if="isAdmin && course.child">
+                <image class="user-avatar" v-if="course.child.avatar" :src="course.child.avatar" mode="aspectFill"></image>
+                <text class="user-avatar-placeholder" v-else>{{ course.child.name?.charAt(0) || '?' }}</text>
+                <text class="user-name">{{ course.child.name || '未知' }}</text>
               </view>
               <text class="course-name">
                 <text class="star-icon" v-if="course.isDailyTask">★</text>
@@ -77,9 +77,9 @@
 
         <view class="form-item" v-if="isAdmin">
           <text class="form-label">用户</text>
-          <picker mode="selector" :value="formUserIndex" :range="allUsers" range-key="name" @change="onFormUserChange">
+          <picker mode="selector" :value="formUserIndex" :range="children" range-key="name" @change="onFormUserChange">
             <view class="picker-value">
-              <text>{{ allUsers[formUserIndex]?.name || '请选择' }}</text>
+              <text>{{ children[formUserIndex]?.name || '请选择' }}</text>
             </view>
           </picker>
         </view>
@@ -226,20 +226,18 @@
 import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import CommonHeader from '@/components/CommonHeader.vue'
 import FilterBar from '@/components/FilterBar.vue'
-import { getSchedules, getAdminSchedules, createSchedule, updateSchedule, deleteSchedule, getUsers, type Schedule } from '@/api/schedule'
-import { useUserFilterStore } from '@/stores/userFilter'
+import { getV2Schedules, createV2Schedule, updateV2Schedule, deleteV2Schedule, type ScheduleV2 } from '@/api/family'
+import { useFamilyStore } from '@/stores/family'
 import { storeToRefs } from 'pinia'
 
-const filterStore = useUserFilterStore()
-const { selectedUserIds } = storeToRefs(filterStore)
+const familyStore = useFamilyStore()
+const { children, selectedChildIds } = storeToRefs(familyStore)
 
 const loading = ref(false)
-const schedules = ref<Schedule[]>([])
+const schedules = ref<ScheduleV2[]>([])
 const showModal = ref(false)
-const editingSchedule = ref<Schedule | null>(null)
+const editingSchedule = ref<ScheduleV2 | null>(null)
 const isAdmin = ref(false)
-const userId = ref('')
-const allUsers = ref<Array<{ id: string; username: string; name?: string; role: string }>>([])
 const formUserIndex = ref(0)
 const currentWeekStart = ref<Date>(new Date())
 
@@ -254,7 +252,7 @@ const dayOptions = [
 ]
 
 const formData = ref({
-  userId: '',
+  childId: '',
   name: '',
   type: 'school' as 'school' | 'tutoring' | 'homework' | 'sports' | 'art' | 'other',
   dayOfWeek: [] as number[],
@@ -381,48 +379,28 @@ const loadUserInfo = () => {
   const userStr = uni.getStorageSync('user')
   if (userStr) {
     const user = JSON.parse(userStr)
-    isAdmin.value = user.role === 'admin'
-    userId.value = user.id || ''
+    // v2: 登录账号只有 parent/admin，均为管理者（孩子是档案不是账号）
+    isAdmin.value = user.role === 'admin' || user.role === 'parent'
   }
 }
 
 const loadUsers = async () => {
   try {
-    const res: any = await getUsers()
-    if (res && res.data) {
-      allUsers.value = res.data || []
-      filterStore.initUsers(res.data || [])
-    }
+    await familyStore.refresh()
   } catch (e) {
-    console.error('Failed to load users', e)
+    console.error('Failed to load family', e)
   }
 }
 
 const loadSchedules = async () => {
   loading.value = true
   try {
-    const weekStart = currentWeekStart.value
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 6)
-    const startStr = weekStart.toISOString().split('T')[0]
-    const endStr = weekEnd.toISOString().split('T')[0]
-    
-    let allSchedules: Schedule[] = []
-    
-    if (isAdmin.value) {
-      const res: any = await getAdminSchedules(undefined, startStr, endStr)
-      if (res.code === 0) {
-        allSchedules = res.data || []
-      }
-    } else {
-      const res: any = await getSchedules(startStr, endStr)
-      if (res.code === 0) {
-        allSchedules = res.data || []
-      }
-    }
-    
-    if (isAdmin.value && selectedUserIds.value.length > 0) {
-      schedules.value = allSchedules.filter(s => selectedUserIds.value.includes(s.userId))
+    // v2: /v2/schedules 返回当前家庭全部 active 课程（含 child），周过滤在前端 weekSchedule 里做
+    const res: any = await getV2Schedules()
+    let allSchedules: ScheduleV2[] = res.code === 0 ? (res.data || []) : []
+
+    if (isAdmin.value && selectedChildIds.value.length > 0) {
+      schedules.value = allSchedules.filter(s => selectedChildIds.value.includes(s.childId))
     } else {
       schedules.value = allSchedules
     }
@@ -462,7 +440,7 @@ const goToToday = () => {
 
 const onFormUserChange = (e: any) => {
   formUserIndex.value = e.detail.value
-  formData.value.userId = allUsers.value[e.detail.value]?.id || ''
+  formData.value.childId = children.value[e.detail.value]?.id || ''
 }
 
 const onStartTimeChange = (e: any) => {
@@ -484,7 +462,7 @@ const onFormEndDateChange = (e: any) => {
 const showAddModal = () => {
   editingSchedule.value = null
   formData.value = {
-    userId: allUsers.value[0]?.id || userId.value,
+    childId: children.value[0]?.id || '',
     name: '',
     type: 'school',
     dayOfWeek: [],
@@ -496,17 +474,17 @@ const showAddModal = () => {
     startDate: '',
     endDate: ''
   }
-  formUserIndex.value = allUsers.value.findIndex(u => u.id === userId.value) || 0
+  formUserIndex.value = 0
   showModal.value = true
 }
 
-const editSchedule = (schedule: Schedule) => {
+const editSchedule = (schedule: ScheduleV2) => {
   editingSchedule.value = schedule
-  const userIdx = allUsers.value.findIndex(u => u.id === schedule.userId)
-  formUserIndex.value = userIdx >= 0 ? userIdx : 0
+  const childIdx = children.value.findIndex(c => c.id === schedule.childId)
+  formUserIndex.value = childIdx >= 0 ? childIdx : 0
   const days = schedule.dayOfWeek.split(',').map(d => Number(d.trim()))
   formData.value = {
-    userId: schedule.userId,
+    childId: schedule.childId,
     name: schedule.name,
     type: schedule.type as 'school' | 'tutoring' | 'homework' | 'sports' | 'art' | 'other',
     dayOfWeek: days,
@@ -521,14 +499,14 @@ const editSchedule = (schedule: Schedule) => {
   showModal.value = true
 }
 
-const confirmDelete = (schedule: Schedule) => {
+const confirmDelete = (schedule: ScheduleV2) => {
   uni.showModal({
     title: '确认删除',
     content: `确定要删除课程"${schedule.name}"吗？`,
     success: async (res) => {
       if (res.confirm) {
         try {
-          const result: any = await deleteSchedule(schedule.id)
+          const result: any = await deleteV2Schedule(schedule.id)
           if (result.code === 0) {
             uni.showToast({ title: '删除成功', icon: 'success' })
             loadSchedules()
@@ -555,14 +533,14 @@ const saveSchedule = async () => {
     uni.showToast({ title: '请选择上课日', icon: 'none' })
     return
   }
-  if (isAdmin.value && !formData.value.userId) {
-    uni.showToast({ title: '请选择用户', icon: 'none' })
+  if (!formData.value.childId) {
+    uni.showToast({ title: '请选择孩子', icon: 'none' })
     return
   }
 
   try {
     const data = {
-      userId: formData.value.userId || userId.value,
+      childId: formData.value.childId,
       name: formData.value.name,
       type: formData.value.type,
       dayOfWeek: formData.value.dayOfWeek.join(','),
@@ -576,7 +554,7 @@ const saveSchedule = async () => {
     }
 
     if (editingSchedule.value) {
-      const res: any = await updateSchedule(editingSchedule.value.id, data)
+      const res: any = await updateV2Schedule(editingSchedule.value.id, data)
       if (res.code === 0) {
         uni.showToast({ title: '保存成功', icon: 'success' })
         closeModal()
@@ -585,7 +563,7 @@ const saveSchedule = async () => {
         uni.showToast({ title: res.message || '保存失败', icon: 'none' })
       }
     } else {
-      const res: any = await createSchedule(data)
+      const res: any = await createV2Schedule(data)
       if (res.code === 0) {
         uni.showToast({ title: '添加成功', icon: 'success' })
         closeModal()
@@ -607,7 +585,7 @@ onMounted(() => {
   loadSchedules()
 })
 
-watch(selectedUserIds, () => {
+watch(selectedChildIds, () => {
   if (isAdmin.value) {
     loadSchedules()
   }

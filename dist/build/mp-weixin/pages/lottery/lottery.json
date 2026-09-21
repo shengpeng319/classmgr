@@ -1,6 +1,7 @@
 {
   "navigationStyle": "custom",
   "usingComponents": {
-    "common-header": "../../components/CommonHeader"
+    "common-header": "../../components/CommonHeader",
+    "user-selector": "../../components/UserSelector"
   }
 }

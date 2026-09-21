@@ -120,6 +120,9 @@
 import { ref, onMounted } from 'vue'
 import { request } from '@/utils/request'
 import { getDeviceId } from '@/utils/device'
+import { useFamilyStore } from '@/stores/family'
+
+const familyStore = useFamilyStore()
 
 const formData = ref({
   username: '',
@@ -138,6 +141,15 @@ const regLoading = ref(false)
 const regError = ref('')
 const regData = ref({ username: '', password: '' })
 
+// v2: 登录/注册成功后预热 familyStore（拉 /v2/family）
+const warmFamily = async () => {
+  try {
+    await familyStore.refresh()
+  } catch (e) {
+    console.error('Failed to warm family store', e)
+  }
+}
+
 const handleRegister = async () => {
   if (!regData.value.username || !regData.value.password) {
     regError.value = '请输入用户名和密码'
@@ -150,11 +162,13 @@ const handleRegister = async () => {
   regLoading.value = true
   regError.value = ''
   try {
-    const res: any = await request({ url: '/auth/register', method: 'POST', data: { ...regData.value } })
+    // v2: 注册即建家庭，role=parent（无角色选择）
+    const res: any = await request({ url: '/v2/auth/register', method: 'POST', data: { ...regData.value } })
     if (res.code === 0) {
       uni.setStorageSync('token', res.data.token)
       uni.setStorageSync('user', JSON.stringify(res.data.user))
       uni.showToast({ title: '注册成功', icon: 'success' })
+      await warmFamily()
       setTimeout(() => { uni.reLaunch({ url: '/pages/today/today' }) }, 1000)
     } else {
       regError.value = res.message || '注册失败'
@@ -197,6 +211,7 @@ const quickLogin = async (user: any) => {
       uni.setStorageSync('token', res.data.token)
       uni.setStorageSync('user', JSON.stringify(res.data.user))
       uni.showToast({ title: '登录成功', icon: 'success' })
+      await warmFamily()
       setTimeout(() => {
         uni.reLaunch({ url: '/pages/today/today' })
       }, 1000)
@@ -250,8 +265,9 @@ const handleLogin = async () => {
       if (rememberMe.value && res.data.rememberToken) {
         uni.setStorageSync(`rememberToken_${res.data.user.id}`, res.data.rememberToken)
       }
-      
+
       uni.showToast({ title: '登录成功', icon: 'success' })
+      await warmFamily()
       setTimeout(() => {
         uni.reLaunch({ url: '/pages/today/today' })
       }, 1000)

@@ -110,12 +110,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { request } from '@/utils/request'
+import { adjustV2ChildPoints } from '@/api/family'
 import { getPresetPointItems, createPresetPointItem, updatePresetPointItem, deletePresetPointItem } from '@/api/presetPointItem'
 
 const mode = ref<'add' | 'subtract'>('add')
-const userId = ref('')
-const userName = ref('')
+const childId = ref('')
+const childName = ref('')
 const points = ref(1)
 const reason = ref('')
 const selectedItemIndex = ref(-1)
@@ -151,7 +151,7 @@ const itemWidth = ref(140)
 const itemGap = ref(30)
 
 const pageTitle = computed(() => {
-  return `${userName.value} ${mode.value === 'add' ? '加分' : '减分'}`
+  return `${childName.value} ${mode.value === 'add' ? '加分' : '减分'}`
 })
 
 const actualPoints = computed(() => {
@@ -413,33 +413,28 @@ const submit = async () => {
     uni.showToast({ title: '请选择或输入积分', icon: 'none' })
     return
   }
+  if (!childId.value) {
+    uni.showToast({ title: '缺少孩子信息', icon: 'none' })
+    return
+  }
 
-  const recordReason = reason.value.trim() || (selectedItemIndex.value >= 0 ? currentItems.value[selectedItemIndex.value].label : '')
+  const recordReason = reason.value.trim() || (selectedItemIndex.value >= 0 ? currentItems.value[selectedItemIndex.value].label : '') || '手动调整'
 
   try {
-    const res: any = await request({
-      url: '/admin/points/adjust',
-      method: 'POST',
-      data: {
-        userId: userId.value,
-        points: actualPoints.value,
-        reason: recordReason
-      }
-    })
-    
+    const res: any = await adjustV2ChildPoints(childId.value, actualPoints.value, recordReason)
     if (res.code === 0) {
-      uni.showToast({ 
-        title: mode.value === 'add' ? '加分成功' : '减分成功', 
-        icon: 'success' 
+      uni.showToast({
+        title: mode.value === 'add' ? '加分成功' : '减分成功',
+        icon: 'success'
       })
       setTimeout(() => {
         uni.navigateBack()
       }, 1500)
     } else {
-      uni.showToast({ title: res.data.message || '操作失败', icon: 'none' })
+      uni.showToast({ title: res.message || '操作失败', icon: 'none' })
     }
-  } catch (e) {
-    uni.showToast({ title: '操作失败', icon: 'none' })
+  } catch (e: any) {
+    uni.showToast({ title: e.message || '操作失败', icon: 'none' })
   }
 }
 
@@ -448,8 +443,8 @@ onMounted(() => {
   const currentPage = pages[pages.length - 1] as any
   if (currentPage?.options) {
     mode.value = currentPage.options.mode || 'add'
-    userId.value = currentPage.options.userId || ''
-    userName.value = decodeURIComponent(currentPage.options.userName || '用户')
+    childId.value = currentPage.options.childId || ''
+    childName.value = decodeURIComponent(currentPage.options.childName || '孩子')
   }
 
   loadItemsFromServer()

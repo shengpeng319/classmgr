@@ -53,8 +53,8 @@
             </view>
           </view>
           <view class="task-meta">
-            <image class="task-user-avatar" :src="task.user?.avatar || defaultAvatar" mode="aspectFill" />
-            <text class="task-user-name">{{ task.user?.name || task.user?.username }}</text>
+            <image class="task-user-avatar" :src="task.child?.avatar || defaultAvatar" mode="aspectFill" />
+            <text class="task-user-name">{{ task.child?.name }}</text>
             <text class="task-date">{{ formatDateRange(task.startDate, task.endDate) }}</text>
           </view>
         </view>
@@ -85,9 +85,9 @@
 
         <view class="form-item" v-if="isAdmin">
           <text class="form-label">用户</text>
-          <picker mode="selector" :value="formUserIndex" :range="allUsers" range-key="name" @change="onFormUserChange">
+          <picker mode="selector" :value="formUserIndex" :range="children" range-key="name" @change="onFormUserChange">
             <view class="picker-value">
-              <text>{{ allUsers[formUserIndex]?.name || '请选择' }}</text>
+              <text>{{ children[formUserIndex]?.name || '请选择' }}</text>
             </view>
           </picker>
         </view>
@@ -187,24 +187,22 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { getTasks, updateTask, createTask, updateAdminTask, deleteTask, getUsers, type Task } from '@/api/task'
+import { getV2Tasks, createV2Task, updateV2Task, deleteV2Task, type TaskV2 } from '@/api/family'
 import CommonHeader from '@/components/CommonHeader.vue'
 import FilterBar from '@/components/FilterBar.vue'
-import { useUserFilterStore } from '@/stores/userFilter'
+import { useFamilyStore } from '@/stores/family'
 import { storeToRefs } from 'pinia'
 
-const filterStore = useUserFilterStore()
-const { selectedUserIds } = storeToRefs(filterStore)
+const familyStore = useFamilyStore()
+const { children, selectedChildIds } = storeToRefs(familyStore)
 
 const loading = ref(false)
 const showModal = ref(false)
-const editingTask = ref<Task | null>(null)
-const tasks = ref<Task[]>([])
-const allUsers = ref<Array<{ id: string; username: string; name?: string; role: string }>>([])
+const editingTask = ref<TaskV2 | null>(null)
+const tasks = ref<TaskV2[]>([])
 const userIndex = ref(0)
 const formUserIndex = ref(0)
 const isAdmin = ref(false)
-const userId = ref('')
 const displayCount = ref(25)
 
 const defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
@@ -213,7 +211,7 @@ const filterStartDate = ref('')
 const filterEndDate = ref('')
 
 const userOptions = computed(() => {
-  return [{ id: '', name: '全部用户' }, ...allUsers.value]
+  return [{ id: '', name: '全部用户' }, ...children.value]
 })
 
 const displayedTasks = computed(() => {
@@ -225,7 +223,7 @@ const hasMore = computed(() => {
 })
 
 const formData = ref({
-  userId: '',
+  childId: '',
   title: '',
   type: 'school' as 'school' | 'tutoring' | 'homework' | 'sports' | 'art' | 'other',
   points: 5,
@@ -289,47 +287,25 @@ const formatDisplayDate = (dateStr: string) => {
 
 const loadUsers = async () => {
   try {
-    const res: any = await getUsers()
-    console.log('loadUsers response:', res)
-    if (res && res.data) {
-      allUsers.value = res.data || []
-      filterStore.initUsers(res.data || [])
-    } else if (res && Array.isArray(res)) {
-      allUsers.value = res
-      filterStore.initUsers(res)
-    }
+    await familyStore.refresh()
   } catch (e) {
-    console.error('Failed to load users', e)
+    console.error('Failed to load family', e)
   }
 }
 
 const loadTasks = async () => {
   loading.value = true
   try {
-    let allTasks: Task[] = []
-    
-    if (isAdmin.value && selectedUserIds.value.length > 0) {
-      const promises = selectedUserIds.value.map(userId => 
-        getTasks({ userId, startDate: filterStartDate.value, endDate: filterEndDate.value })
-      )
-      const results = await Promise.all(promises)
-      for (const res of results) {
-        if (res && res.data) {
-          allTasks = allTasks.concat(res.data)
-        }
-      }
-    } else if (isAdmin.value) {
-      const res: any = await getTasks({ startDate: filterStartDate.value, endDate: filterEndDate.value })
-      if (res && res.data) {
-        allTasks = res.data || []
-      }
-    } else {
-      const res: any = await getTasks({ startDate: filterStartDate.value, endDate: filterEndDate.value })
-      if (res && res.data) {
-        allTasks = res.data || []
-      }
+    const res: any = await getV2Tasks({
+      startDate: filterStartDate.value,
+      endDate: filterEndDate.value
+    })
+    let allTasks: TaskV2[] = res.code === 0 ? (res.data || []) : []
+
+    if (isAdmin.value && selectedChildIds.value.length > 0) {
+      allTasks = allTasks.filter(t => selectedChildIds.value.includes(t.childId))
     }
-    
+
     tasks.value = allTasks
   } catch (e) {
     console.error('Failed to load tasks', e)
@@ -372,7 +348,7 @@ const onUserChange = (e: any) => {
 
 const onFormUserChange = (e: any) => {
   formUserIndex.value = e.detail.value
-  formData.value.userId = allUsers.value[e.detail.value]?.id || ''
+  formData.value.childId = children.value[e.detail.value]?.id || ''
 }
 
 const onFormStartDateChange = (e: any) => {
@@ -386,7 +362,7 @@ const onFormEndDateChange = (e: any) => {
 const showAddModal = () => {
   editingTask.value = null
   formData.value = {
-    userId: allUsers.value[0]?.id || '',
+    childId: children.value[0]?.id || '',
     title: '',
     type: 'school',
     points: 5,
@@ -397,12 +373,12 @@ const showAddModal = () => {
   showModal.value = true
 }
 
-const editTask = (task: Task) => {
+const editTask = (task: TaskV2) => {
   editingTask.value = task
-  const userIdx = allUsers.value.findIndex(u => u.id === task.userId)
-  formUserIndex.value = userIdx >= 0 ? userIdx : 0
+  const childIdx = children.value.findIndex(c => c.id === task.childId)
+  formUserIndex.value = childIdx >= 0 ? childIdx : 0
   Object.assign(formData.value, {
-    userId: task.userId,
+    childId: task.childId,
     title: task.title,
     type: task.type as 'school' | 'tutoring' | 'homework' | 'sports' | 'art' | 'other',
     points: task.points || 5,
@@ -422,20 +398,17 @@ const saveTask = async () => {
     uni.showToast({ title: '请填写完整信息', icon: 'none' })
     return
   }
-  if (isAdmin.value && !formData.value.userId) {
-    uni.showToast({ title: '请选择用户', icon: 'none' })
+  if (!formData.value.childId) {
+    uni.showToast({ title: '请选择孩子', icon: 'none' })
     return
   }
 
   try {
     const points = Number(formData.value.points) || 5
     if (editingTask.value) {
-      const res: any = await updateAdminTask(editingTask.value.id, {
+      const res: any = await updateV2Task(editingTask.value.id, {
         title: formData.value.title,
-        type: formData.value.type,
-        points: points,
-        startDate: formData.value.startDate,
-        endDate: formData.value.endDate
+        points: points
       })
       if (res.code === 0) {
         uni.showToast({ title: '保存成功', icon: 'success' })
@@ -443,8 +416,8 @@ const saveTask = async () => {
         loadTasks()
       }
     } else {
-      const res: any = await createTask({
-        userId: formData.value.userId,
+      const res: any = await createV2Task({
+        childId: formData.value.childId,
         title: formData.value.title,
         type: formData.value.type,
         points: points,
@@ -463,14 +436,14 @@ const saveTask = async () => {
   }
 }
 
-const confirmDelete = (task: Task) => {
+const confirmDelete = (task: TaskV2) => {
   uni.showModal({
     title: '确认删除',
     content: `确定要删除任务"${task.title}"吗？`,
     success: async (res) => {
       if (res.confirm) {
         try {
-          const result: any = await deleteTask(task.id)
+          const result: any = await deleteV2Task(task.id)
           if (result.code === 0) {
             uni.showToast({ title: '删除成功', icon: 'success' })
             loadTasks()
@@ -483,15 +456,15 @@ const confirmDelete = (task: Task) => {
   })
 }
 
-const toggleTask = async (task: Task) => {
+const toggleTask = async (task: TaskV2) => {
   const newStatus = !task.isCompleted
   const optimisticTask = tasks.value.find(t => t.id === task.id)
   if (optimisticTask) {
     optimisticTask.isCompleted = newStatus
   }
-  
+
   try {
-    const res: any = await updateAdminTask(task.id, { isCompleted: newStatus })
+    const res: any = await updateV2Task(task.id, { isCompleted: newStatus })
     if (res.code !== 0) {
       await loadTasks()
     }
@@ -502,23 +475,22 @@ const toggleTask = async (task: Task) => {
 }
 
 onMounted(() => {
-  // Check admin permission
+  // v2: 登录账号只有 parent/admin，均为管理者（孩子是档案不是账号）
   const userStr = uni.getStorageSync('user')
   if (userStr) {
     const user = JSON.parse(userStr)
-    isAdmin.value = user.role === 'admin'
-    userId.value = user.id || ''
+    isAdmin.value = user.role === 'admin' || user.role === 'parent'
   }
-  
+
   // Initialize dates
   filterStartDate.value = getDateMinusDays(7)
   filterEndDate.value = getTodayString()
-  
+
   loadUsers()
   loadTasks()
 })
 
-watch(selectedUserIds, () => {
+watch(selectedChildIds, () => {
   if (isAdmin.value) {
     loadTasks()
   }

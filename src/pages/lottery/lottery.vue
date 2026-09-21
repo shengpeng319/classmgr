@@ -1,7 +1,8 @@
 <template>
   <view class="container">
     <CommonHeader title="祈愿" />
-    
+    <UserSelector :users="children" v-model="currentChildId" />
+
     <view class="content">
       <!-- 抽卡按钮区域 -->
       <view class="wish-section">
@@ -128,21 +129,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import CommonHeader from '@/components/CommonHeader.vue'
-import { getLotteryCards, drawCard, getMyCards } from '@/api/lottery'
-import type { Card, StudentCard } from '@/api/lottery'
+import UserSelector from '@/components/UserSelector.vue'
+import { getLotteryCards } from '@/api/lottery'
+import { getV2LotteryInfo, drawV2Card, type CardV2, type StudentCardV2 } from '@/api/family'
+import { useFamilyStore } from '@/stores/family'
+import { storeToRefs } from 'pinia'
 
-const availableCards = ref<Card[]>([])
-const myCards = ref<StudentCard[]>([])
+const familyStore = useFamilyStore()
+const { children, currentChildId } = storeToRefs(familyStore)
+
+const availableCards = ref<CardV2[]>([])
+const myCards = ref<StudentCardV2[]>([])
 const loadingCards = ref(false)
 const isDrawing = ref(false)
 const showWishAnimation = ref(false)
 const revealActive = ref(false)
 const showResultsList = ref(false)
 const canClose = ref(false)
-const drawnCard = ref<Card | null>(null)
-const wishResults = ref<{ card: Card }[]>([])
+const drawnCard = ref<CardV2 | null>(null)
+const wishResults = ref<{ card: CardV2 }[]>([])
 const progressWidth = ref('0%')
 const markerPosition = ref('0%')
 
@@ -174,9 +181,10 @@ const loadAvailableCards = async () => {
 }
 
 const loadMyCards = async () => {
+  if (!currentChildId.value) return
   try {
-    const res: any = await getMyCards()
-    if (res.code === 0) myCards.value = res.data || []
+    const res: any = await getV2LotteryInfo(currentChildId.value)
+    if (res.code === 0 && res.data) myCards.value = res.data.cards || []
   } catch (e) {
     console.error('Failed to load my cards', e)
   }
@@ -184,8 +192,12 @@ const loadMyCards = async () => {
 
 const doWish = async () => {
   if (isDrawing.value) return
+  if (!currentChildId.value) {
+    uni.showToast({ title: '暂无孩子档案', icon: 'none' })
+    return
+  }
   isDrawing.value = true
-  
+
   // 显示动画
   showWishAnimation.value = true
   revealActive.value = false
@@ -194,26 +206,34 @@ const doWish = async () => {
   progressWidth.value = '0%'
   markerPosition.value = '0%'
   wishResults.value = []
-  
+
   try {
-    // 进行十连抽卡
+    // 十连抽卡（v2：每次抽卡消耗孩子积分，抽到中途失败即停止）
     const results: any[] = []
     for (let i = 0; i < 10; i++) {
-      const res: any = await drawCard()
+      const res: any = await drawV2Card(currentChildId.value)
       if (res.code === 0) {
         results.push(res.data)
+      } else {
+        uni.showToast({ title: res.message || '抽卡失败', icon: 'none' })
+        break
       }
     }
-    
-    // 随机决定保底（简化处理，前9个给普通，最后1个根据概率决定）
+
+    if (results.length === 0) {
+      showWishAnimation.value = false
+      return
+    }
+
+    // 随机决定保底（简化处理，按稀有度排序取最高展示）
     const sortedResults = results.sort((a, b) => {
       const order = { legendary: 4, epic: 3, rare: 2, common: 1 }
       return (order[b.card.rarity as keyof typeof order] || 0) - (order[a.card.rarity as keyof typeof order] || 0)
     })
-    
+
     wishResults.value = results
     drawnCard.value = sortedResults[0].card
-    
+
     // 动画序列
     await animateProgress()
     await delay(500)
@@ -222,7 +242,7 @@ const doWish = async () => {
     showResultsList.value = true
     await delay(1000)
     canClose.value = true
-    
+
     loadMyCards()
   } catch (e) {
     console.error('Wish failed', e)
@@ -262,7 +282,13 @@ const closeWish = () => {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 onMounted(() => {
+  familyStore.refresh().then(() => {
+    loadMyCards()
+  }).catch(() => {})
   loadAvailableCards()
+})
+
+watch(currentChildId, () => {
   loadMyCards()
 })
 </script>

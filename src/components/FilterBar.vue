@@ -1,20 +1,20 @@
 <template>
-  <view class="filter-bar" v-if="isAdmin && regularUsers.length > 0">
+  <view class="filter-bar" v-if="isAdmin && children.length > 0">
     <scroll-view scroll-x class="user-scroll">
       <view class="user-list">
-        <view 
-          class="user-avatar-item" 
-          v-for="user in regularUsers" 
-          :key="user.id"
-          @click="handleToggle(user.id)"
+        <view
+          class="user-avatar-item"
+          v-for="child in children"
+          :key="child.id"
+          @click="handleToggle(child.id)"
         >
-          <view class="avatar-wrapper" :class="{ selected: isSelected(user.id) }">
-            <image class="avatar-img" :src="user.avatar || defaultAvatar" mode="aspectFill" />
-            <view class="check-badge" v-if="isSelected(user.id)">
+          <view class="avatar-wrapper" :class="{ selected: isSelected(child.id) }">
+            <image class="avatar-img" :src="child.avatar || defaultAvatar" mode="aspectFill" />
+            <view class="check-badge" v-if="isSelected(child.id)">
               <text class="check-icon">✓</text>
             </view>
           </view>
-          <text class="user-name">{{ user.name || user.username }}</text>
+          <text class="user-name">{{ child.name }}</text>
         </view>
       </view>
     </scroll-view>
@@ -22,23 +22,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useUserFilterStore } from '@/stores/userFilter'
+import { useFamilyStore } from '@/stores/family'
 import { storeToRefs } from 'pinia'
 
 const props = defineProps<{
   isAdmin: boolean
 }>()
 
-const filterStore = useUserFilterStore()
-const { regularUsers } = storeToRefs(filterStore)
+const familyStore = useFamilyStore()
+const { children } = storeToRefs(familyStore)
 
 const defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
 
-const isSelected = (userId: string) => filterStore.isSelected(userId)
+const isSelected = (childId: string) => familyStore.isSelected(childId)
 
-const handleToggle = (userId: string) => {
-  filterStore.toggleUser(userId)
+const handleToggle = (childId: string) => {
+  familyStore.toggleChild(childId)
 }
 </script>
 
