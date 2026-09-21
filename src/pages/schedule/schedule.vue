@@ -595,9 +595,9 @@ const renewQuota = async () => {
   uni.login({
     success: async (lr: any) => {
       uni.requestSubscribeMessage({
-        tmplIds: ['CLASS_REMIND_TMPL'],
+        tmplIds: ['Jm4S-Wo3KGMjUy6kW1pF21_f79UcCt1P5QjRe-cZEGM'],
         success: async (res: any) => {
-          if (res['CLASS_REMIND_TMPL'] === 'accept') {
+          if (res['Jm4S-Wo3KGMjUy6kW1pF21_f79UcCt1P5QjRe-cZEGM'] === 'accept') {
             try { await subscribeNotify(lr.code, 1) } catch (e) {}
           }
         },
@@ -618,9 +618,9 @@ const toggleRemind = () => {
   uni.login({
     success: async (lr: any) => {
       uni.requestSubscribeMessage({
-        tmplIds: ['CLASS_REMIND_TMPL'],
+        tmplIds: ['Jm4S-Wo3KGMjUy6kW1pF21_f79UcCt1P5QjRe-cZEGM'],
         success: async (res: any) => {
-          if (res['CLASS_REMIND_TMPL'] === 'accept') {
+          if (res['Jm4S-Wo3KGMjUy6kW1pF21_f79UcCt1P5QjRe-cZEGM'] === 'accept') {
             remindEnabled.value = true
             uni.setStorageSync('notifyEnabled', '1')
             try {

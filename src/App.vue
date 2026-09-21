@@ -17,9 +17,9 @@ onShow(() => {
     uni.login({
       success: (lr: any) => {
         uni.requestSubscribeMessage({
-          tmplIds: ['CLASS_REMIND_TMPL'],
+          tmplIds: ['Jm4S-Wo3KGMjUy6kW1pF21_f79UcCt1P5QjRe-cZEGM'],
           success: (res: any) => {
-            if (res['CLASS_REMIND_TMPL'] === 'accept') {
+            if (res['Jm4S-Wo3KGMjUy6kW1pF21_f79UcCt1P5QjRe-cZEGM'] === 'accept') {
               subscribeNotify(lr.code, 1).catch(() => {})
             }
           },
