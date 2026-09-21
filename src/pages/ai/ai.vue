@@ -1,6 +1,5 @@
 <template>
   <view class="container">
-    <CommonHeader title="AI 助手" />
 
     <scroll-view class="chat-list" scroll-y :scroll-top="scrollTop" :scroll-with-animation="true">
       <view class="welcome" v-if="chatMessages.length === 0 && !loading">
@@ -72,7 +71,6 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import CommonHeader from '@/components/CommonHeader.vue'
 import { aiChat, aiConfirm, type AIChatMessage } from '@/api/ai'
 
 interface ChatDisplayMessage {

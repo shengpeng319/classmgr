@@ -1,6 +1,4 @@
 {
-  "navigationStyle": "custom",
-  "usingComponents": {
-    "common-header": "../../components/CommonHeader"
-  }
+  "navigationBarTitleText": "AI 助手",
+  "usingComponents": {}
 }
