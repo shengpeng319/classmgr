@@ -224,6 +224,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import CommonHeader from '@/components/CommonHeader.vue'
 import FilterBar from '@/components/FilterBar.vue'
 import { getV2Schedules, createV2Schedule, updateV2Schedule, deleteV2Schedule, type ScheduleV2 } from '@/api/family'
@@ -583,6 +584,11 @@ onMounted(() => {
   loadUserInfo()
   loadUsers()
   loadSchedules()
+})
+
+// 小程序 tabBar 页切回时不会重新 mount——AI/其他端改了课程后靠 onShow 重拉
+onShow(() => {
+  if (currentWeekStart.value) loadSchedules()
 })
 
 watch(selectedChildIds, () => {

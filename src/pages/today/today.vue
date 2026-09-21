@@ -200,6 +200,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { getV2Tasks, createV2Task, updateV2Task, deleteV2Task, type TaskV2 } from '@/api/family'
 import { generateDailyTasks } from '@/api/task'
 import CommonHeader from '@/components/CommonHeader.vue'
@@ -522,6 +523,11 @@ onMounted(() => {
   loadUserInfo()
   loadUsers()
   loadTasks()
+})
+
+// 小程序 tabBar 页切回不重新 mount——AI 改了任务后靠 onShow 重拉
+onShow(() => {
+  if (currentDate.value) loadTasks()
 })
 </script>
 
