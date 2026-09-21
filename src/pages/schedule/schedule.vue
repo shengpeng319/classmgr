@@ -2,11 +2,14 @@
   <view class="container">
     <CommonHeader title="课程表" :show-add-btn="true" :show-week-btn="true" @add="showAddModal" @week="goToToday" />
 
-    <view class="remind-bar" @click="toggleRemind">
-      <text class="remind-label">{{ remindEnabled ? '🔔 上课提醒已开启（提前30分钟）' : '🔕 上课提醒已关闭' }}</text>
-      <view class="remind-switch" :class="{ on: remindEnabled }">
-        <view class="remind-dot" />
+    <view class="remind-bar">
+      <view class="remind-left" @click="toggleRemind">
+        <text class="remind-label">{{ remindEnabled ? '🔔 上课提醒已开启（提前30分钟）' : '🔕 上课提醒已关闭' }}</text>
+        <view class="remind-switch" :class="{ on: remindEnabled }">
+          <view class="remind-dot" />
+        </view>
       </view>
+      <text class="cal-btn" @click="addToCalendar">写入手机日历</text>
     </view>
 
     <FilterBar :is-admin="isAdmin" />
@@ -234,6 +237,7 @@
 import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { subscribeNotify, setNotifySettings } from '@/api/schedule'
+import { exportCoursesToCalendar } from '@/utils/calendarExport'
 import CommonHeader from '@/components/CommonHeader.vue'
 import FilterBar from '@/components/FilterBar.vue'
 import { getV2Schedules, createV2Schedule, updateV2Schedule, deleteV2Schedule, type ScheduleV2 } from '@/api/family'
@@ -607,6 +611,26 @@ const renewQuota = async () => {
   })
 }
 
+const addToCalendar = async () => {
+  const courses = schedules.value
+    .filter(sc => sc.isActive && !sc.isDailyTask)
+    .map(sc => ({
+      name: sc.name,
+      dayOfWeek: sc.dayOfWeek,
+      startTime: sc.startTime,
+      endTime: sc.endTime,
+      location: sc.location || '',
+      childName: (sc as any).child?.name || ''
+    }))
+  if (courses.length === 0) {
+    uni.showToast({ title: '暂无课程', icon: 'none' })
+    return
+  }
+  const n = await exportCoursesToCalendar(courses, 30)
+  if (n > 0) uni.showToast({ title: `已写入 ${n} 条周重复提醒`, icon: 'success' })
+  else uni.showModal({ title: '未写入', content: '未获得日历权限或写入失败。可在手机设置→微信→日历中开启权限后重试。', showCancel: false })
+}
+
 const toggleRemind = () => {
   const target = !remindEnabled.value
   if (!target) {
@@ -670,9 +694,28 @@ watch(selectedChildIds, () => {
   background: #ffffff;
   border-radius: 14rpx;
 }
+.remind-left {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  flex: 1;
+  min-width: 0;
+}
 .remind-label {
   font-size: 26rpx;
   color: #333333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-btn {
+  flex-shrink: 0;
+  margin-left: 12rpx;
+  font-size: 24rpx;
+  color: #4a7cf7;
+  padding: 8rpx 18rpx;
+  border: 1rpx solid #4a7cf7;
+  border-radius: 999rpx;
 }
 .remind-switch {
   width: 84rpx;
