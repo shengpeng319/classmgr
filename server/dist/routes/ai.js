@@ -146,6 +146,17 @@ function aiRoutes(router) {
                             result = { status: 'error', message: `未知工具: ${tc.function.name}` };
                         }
                         else if (tool.needsConfirm) {
+                            // 预校验：执行路径会在确认时跑 resolveTargetUser 等校验，这里先跑一次把错误提前到对话里（否则用户点确认才报错）
+                            if (tool.name === 'add_points' && args.childName) {
+                                try {
+                                    await (0, aiTools_1.resolveTargetUser)({ userId: user.userId, username: user.username, role: user.role }, args);
+                                }
+                                catch (e) {
+                                    result = { status: 'error', message: e.message };
+                                    llmMessages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+                                    continue;
+                                }
+                            }
                             const pending = (0, aiTools_1.createPendingConfirm)(user.userId, tool.name, args);
                             confirmId = pending.confirmId;
                             result = {

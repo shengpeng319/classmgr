@@ -21,7 +21,8 @@ import {
   aiToolDefs,
   getAITool,
   createPendingConfirm,
-  takePendingConfirm
+  takePendingConfirm,
+  resolveTargetUser
 } from '../services/aiTools'
 
 const MAX_TOOL_ROUNDS = 5
@@ -183,6 +184,16 @@ export function aiRoutes(router: Router) {
           if (!tool) {
             result = { status: 'error', message: `未知工具: ${tc.function.name}` }
           } else if (tool.needsConfirm) {
+            // 预校验：执行路径会在确认时跑 resolveTargetUser 等校验，这里先跑一次把错误提前到对话里（否则用户点确认才报错）
+            if (tool.name === 'add_points' && args.childName) {
+              try {
+                await resolveTargetUser({ userId: user.userId, username: user.username, role: user.role }, args)
+              } catch (e: any) {
+                result = { status: 'error', message: e.message }
+                llmMessages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) })
+                continue
+              }
+            }
             const pending = createPendingConfirm(user.userId, tool.name, args)
             confirmId = pending.confirmId
             result = {

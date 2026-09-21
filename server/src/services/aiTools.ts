@@ -70,36 +70,31 @@ function normalizeScheduleList(args: any): any[] {
  * 普通用户一律查自己（不信任模型传参）。
  * ponytail: childName 需唯一匹配，歧义时报错列出候选；孩子多了再考虑精确 id 传参。
  */
-async function resolveTargetUser(ctx: AIContext, args: any): Promise<{ userId: string; userName: string; childId?: string }> {
-  if (ctx.role !== 'admin' || !args?.childName) {
-    const self = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, username: true } })
-    return { userId: ctx.userId, userName: self?.name || self?.username || ctx.username }
-  }
-  const kw = String(args.childName).trim()
-  // 新模型：孩子=Child 档案；old 数据 fallback User 表
-  const me = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { familyId: true } })
-  if (me?.familyId) {
-    const kids = await prisma.child.findMany({ where: { familyId: me.familyId, name: { contains: kw } } })
+export async function resolveTargetUser(ctx: AIContext, args: any): Promise<{ userId: string; userName: string; childId?: string }> {
+  const me = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, username: true, familyId: true, role: true } })
+  const kw = args?.childName ? String(args.childName).trim() : ''
+  // 家长/admin：解析本家庭孩子（childName 指定；没指定且家里只有1个孩子则用那个）
+  if (me?.familyId && (me.role === 'admin' || me.role === 'parent') && (kw || !args?.childName)) {
+    const kids = await prisma.child.findMany({ where: { familyId: me.familyId, ...(kw ? { name: { contains: kw } } : {}) } })
     if (kids.length === 1) {
       return { userId: ctx.userId, userName: kids[0].name, childId: kids[0].id }
     }
     if (kids.length > 1) {
+      if (!kw) throw new Error(`家里有多个孩子：${kids.map((c) => c.name).join('、')}，请说明给谁`)
       throw new Error(`「${kw}」匹配到多个孩子：${kids.map((c) => c.name).join('、')}，请说得更具体些`)
     }
+    if (kw) {
+      const candidates = await prisma.user.findMany({
+        where: { role: { not: 'admin' }, OR: [{ name: { contains: kw } }, { username: { contains: kw } }] },
+        select: { id: true, name: true, username: true }
+      })
+      if (candidates.length === 1) return { userId: candidates[0].id, userName: candidates[0].name || candidates[0].username }
+    }
   }
-  const candidates = await prisma.user.findMany({
-    where: {
-      role: { not: 'admin' },
-      OR: [{ name: { contains: kw } }, { username: { contains: kw } }]
-    },
-    select: { id: true, name: true, username: true }
-  })
-  if (candidates.length === 0) throw new Error(`找不到孩子「${kw}」，可先用 list_children 查看孩子列表`)
-  if (candidates.length > 1) {
-    throw new Error(`「${kw}」匹配到多个孩子：${candidates.map((c) => c.name || c.username).join('、')}，请说得更具体些`)
+  if (!kw) {
+    return { userId: ctx.userId, userName: me?.name || me?.username || ctx.username }
   }
-  const c = candidates[0]
-  return { userId: c.id, userName: c.name || c.username }
+  throw new Error(`找不到孩子「${kw}」，可先用 list_children 查看孩子列表`)
 }
 
 /**
@@ -556,6 +551,10 @@ const getPoints: AITool = {
   summarize: (args) => `查询积分${args?.childName ? `（${args.childName}）` : ''}`,
   execute: async (ctx, args) => {
     const target = await resolveTargetUser(ctx, args)
+    if (target.childId) {
+      const child = await prisma.child.findUnique({ where: { id: target.childId }, select: { points: true } })
+      return { owner: target.userName, points: child?.points ?? 0 }
+    }
     const user = await prisma.user.findUnique({
       where: { id: target.userId },
       select: { points: true }
@@ -567,50 +566,45 @@ const getPoints: AITool = {
 const addPoints: AITool = {
   name: 'add_points',
   description:
-    '（仅管理员）给指定用户加减积分，points 为正数加分、负数减分，需说明原因。普通用户调用会被拒绝',
+    '给指定孩子加减积分，points 为正数加分、负数减分，需说明原因',
   parameters: {
     type: 'object',
     properties: {
-      userId: { type: 'string', description: '目标用户 id' },
+      childName: { type: 'string', description: '孩子姓名，模糊匹配' },
       points: { type: 'number', description: '积分变化，正数加分，负数减分' },
       reason: { type: 'string', description: '调整原因' }
     },
-    required: ['userId', 'points']
+    required: ['points']
   },
   needsConfirm: true,
   summarize: (args) =>
-    `调整积分：用户 ${args?.userId} ${args?.points > 0 ? '+' : ''}${args?.points}（${args?.reason || '无原因'}）`,
+    `调整积分：${args?.childName || '孩子'} ${args?.points > 0 ? '+' : ''}${args?.points}（${args?.reason || '无原因'}）`,
   execute: async (ctx, args) => {
-    if (ctx.role !== 'admin') {
-      throw new Error('仅管理员可以调整积分')
-    }
-    const targetUserId = String(args?.userId || '')
+    const target = await resolveTargetUser(ctx, args)
     const delta = Number(args?.points)
-    if (!targetUserId) throw new Error('缺少目标用户 id')
     if (!Number.isFinite(delta) || delta === 0) throw new Error('积分变化必须是非零数字')
-
-    const target = await prisma.user.findUnique({ where: { id: targetUserId } })
-    if (!target) throw new Error('目标用户不存在')
+    if (!target.childId) throw new Error(`积分挂在孩子档案上，找不到「${target.userName}」的孩子档案`)
 
     const [, updated] = await prisma.$transaction([
       prisma.pointRecord.create({
         data: {
-          userId: targetUserId,
+          childId: target.childId,
+          userId: ctx.userId,
           taskId: null,
-          taskTitle: '管理员调整',
+          taskTitle: 'AI 助手调整',
           points: delta,
           reason: args?.reason ? String(args.reason) : 'AI 助手调整'
         }
       }),
-      prisma.user.update({
-        where: { id: targetUserId },
-        data: { points: target.points + delta }
+      prisma.child.update({
+        where: { id: target.childId },
+        data: { points: { increment: delta } }
       })
     ])
 
     return {
       success: true,
-      targetUser: target.name || target.username,
+      targetUser: target.userName,
       adjusted: delta,
       points: updated.points
     }
@@ -690,7 +684,7 @@ export function getAITool(name: string): AITool | undefined {
 /** 导出给 LLM 的工具定义；管理员工具（add_points）只对 admin 暴露 */
 export function aiToolDefs(role: string): ToolDef[] {
   return allTools
-    .filter((t) => t.name !== 'add_points' || role === 'admin')
+    .filter((t) => t.name !== 'add_points' || role === 'admin' || role === 'parent')
     .map((t) => ({
       type: 'function' as const,
       function: {
